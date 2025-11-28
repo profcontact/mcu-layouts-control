@@ -15,15 +15,11 @@ if (process.env.NODE_ENV === 'development' && !API_BASE_URL) {
   console.error('[Join API] Required format: API_URL=https://your-api-url/api/rest');
 }
 
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
-
 export async function POST(
   request: NextRequest,
-  context: RouteContext
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id } = await params;
   try {
     if (!API_BASE_URL) {
       console.error('[Join API] API_URL environment variable is not set');
