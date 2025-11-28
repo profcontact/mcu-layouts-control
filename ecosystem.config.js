@@ -3,7 +3,7 @@ module.exports = {
     name: 'mcu-layout',
     script: 'node_modules/next/dist/bin/next',
     args: 'start',
-    cwd: process.cwd(),
+    // cwd будет автоматически установлен в директорию, где находится этот файл
     instances: 2, // Количество инстансов (рекомендуется 2 для балансировки)
     exec_mode: 'cluster',
     env: {
