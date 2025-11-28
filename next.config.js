@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false, // Отключено для избежания двойного вызова useEffect
+  output: 'standalone', // Для Docker деплоя
   webpack: (config, { isServer }) => {
     // Исправляем проблему с react-dnd в Next.js
     if (!isServer) {

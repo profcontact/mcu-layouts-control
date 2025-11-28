@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  mcu-layout:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcu-layout
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Переменные окружения из .env файла
+      - API_URL=${API_URL}
+      - WS_HOST=${WS_HOST}
+      - NEXT_PUBLIC_WS_HOST=${NEXT_PUBLIC_WS_HOST}
+    env_file:
+      - .env.production
+    networks:
+      - mcu-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  mcu-network:
+    driver: bridge
+
