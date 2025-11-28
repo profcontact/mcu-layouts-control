@@ -16,6 +16,8 @@ const nextConfig = {
   // Отключаем оптимизацию для react-dnd, чтобы избежать проблем с vendor chunks
   experimental: {
     optimizePackageImports: ['react-dnd', 'react-dnd-html5-backend'],
+    // Отключаем автоматическую статическую оптимизацию
+    isrMemoryCacheSize: 0,
   },
   // Production оптимизации
   productionBrowserSourceMaps: false,
