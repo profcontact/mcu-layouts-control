@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!hasAuth(request)) {
@@ -19,8 +19,9 @@ export async function GET(
       );
     }
 
+    const { id } = await params;
     const authHeaders = getAuthHeaders(request);
-    const response = await axios.get(`${API_BASE_URL}/conference-sessions/${params.id}`, {
+    const response = await axios.get(`${API_BASE_URL}/conference-sessions/${id}`, {
       headers: authHeaders,
     });
 
@@ -36,7 +37,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!hasAuth(request)) {
@@ -46,11 +47,12 @@ export async function PATCH(
       );
     }
 
+    const { id } = await params;
     const authHeaders = getAuthHeaders(request);
     const body = await request.json();
 
     const response = await axios.patch(
-      `${API_BASE_URL}/conference-sessions/${params.id}`,
+      `${API_BASE_URL}/conference-sessions/${id}`,
       body,
       {
         headers: authHeaders,

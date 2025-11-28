@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!hasAuth(request)) {
@@ -19,10 +19,11 @@ export async function GET(
       );
     }
 
+    const { id } = await params;
     const authHeaders = getAuthHeaders(request);
     
     // Добавляем participantFilterType в query параметры
-    const url = new URL(`${API_BASE_URL}/conference-sessions/${params.id}/participants/find`);
+    const url = new URL(`${API_BASE_URL}/conference-sessions/${id}/participants/find`);
     url.searchParams.set('participantFilterType', 'CONNECTED_OR_INVITED');
     
     const response = await axios.get(url.toString(), {

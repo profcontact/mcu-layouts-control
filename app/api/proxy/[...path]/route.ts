@@ -8,47 +8,48 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   return handleRequest(request, params, 'GET');
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   return handleRequest(request, params, 'POST');
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   return handleRequest(request, params, 'PUT');
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   return handleRequest(request, params, 'PATCH');
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   return handleRequest(request, params, 'DELETE');
 }
 
 async function handleRequest(
   request: NextRequest,
-  params: { path: string[] },
+  params: Promise<{ path: string[] }>,
   method: string
 ) {
   try {
+    const { path: pathArray } = await params;
     // Собираем путь из параметров
-    const path = '/' + params.path.join('/');
+    const path = '/' + pathArray.join('/');
     const url = `${API_BASE_URL}${path}`;
 
     // Получаем query параметры

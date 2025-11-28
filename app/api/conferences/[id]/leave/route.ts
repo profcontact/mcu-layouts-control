@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!hasAuth(request)) {
@@ -26,8 +26,9 @@ export async function POST(
       );
     }
 
+    const { id } = await params;
     const authHeaders = getAuthHeaders(request);
-    const url = `${API_BASE_URL}/conference-sessions/${params.id}/leave`;
+    const url = `${API_BASE_URL}/conference-sessions/${id}/leave`;
     
     // Отправляем POST запрос с пустым телом
     await axios.post(url, {}, {

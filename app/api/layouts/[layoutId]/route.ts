@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { layoutId: string } }
+  { params }: { params: Promise<{ layoutId: string }> }
 ) {
   try {
     if (!hasAuth(request)) {
@@ -18,8 +18,9 @@ export async function GET(
         { status: 401 }
       );
     }
+    const { layoutId } = await params;
     // Получаем настройки раскладки по ID
-    const response = await axios.get(`${API_BASE_URL}/system/layouts/${params.layoutId}`, {
+    const response = await axios.get(`${API_BASE_URL}/system/layouts/${layoutId}`, {
       headers: getAuthHeaders(request),
     });
 

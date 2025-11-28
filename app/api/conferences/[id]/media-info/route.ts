@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let url: string | undefined;
   let authHeaders: Record<string, string> | undefined;
@@ -30,8 +30,9 @@ export async function GET(
       );
     }
 
+    const { id } = await params;
     authHeaders = getAuthHeaders(request);
-    url = `${API_BASE_URL}/conference-sessions/${params.id}/media/info`;
+    url = `${API_BASE_URL}/conference-sessions/${id}/media/info`;
     
     const response = await axios.get(url, {
       headers: authHeaders,

@@ -9,9 +9,10 @@ const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { resourceId: string } }
+  { params }: { params: Promise<{ resourceId: string }> }
 ) {
   try {
+    const { resourceId } = await params;
     // Для получения ресурсов проверяем авторизацию через заголовки или query параметры
     // Браузер не отправляет заголовки авторизации при запросе изображений через <img>
     let authHeaders = getAuthHeaders(request);
@@ -31,7 +32,7 @@ export async function GET(
     }
     
     // Проксируем запрос к внешнему API для получения ресурса
-    const response = await axios.get(`${API_BASE_URL}/resources/${params.resourceId}`, {
+    const response = await axios.get(`${API_BASE_URL}/resources/${resourceId}`, {
       headers: authHeaders,
       responseType: 'arraybuffer', // Для бинарных данных (изображения)
     });

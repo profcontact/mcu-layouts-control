@@ -17,7 +17,7 @@ if (process.env.NODE_ENV === 'development' && !API_BASE_URL) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!API_BASE_URL) {
@@ -35,11 +35,12 @@ export async function POST(
       );
     }
 
+    const { id } = await params;
     const authHeaders = getAuthHeaders(request);
     const body = await request.json();
 
     const response = await axios.post(
-      `${API_BASE_URL}/conference-sessions/${params.id}/join`,
+      `${API_BASE_URL}/conference-sessions/${id}/join`,
       body,
       {
         headers: authHeaders,
