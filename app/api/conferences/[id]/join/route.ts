@@ -36,11 +36,12 @@ export async function POST(
       );
     }
 
+    const { id } = params;
     const authHeaders = getAuthHeaders(request);
     const body = await request.json();
 
     const response = await axios.post(
-      `${API_BASE_URL}/conference-sessions/${params.id}/join`,
+      `${API_BASE_URL}/conference-sessions/${id}/join`,
       body,
       {
         headers: authHeaders,
