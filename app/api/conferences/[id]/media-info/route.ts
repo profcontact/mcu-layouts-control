@@ -8,6 +8,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  let url: string | undefined;
+  let authHeaders: Record<string, string> | undefined;
+  
   try {
     if (!hasAuth(request)) {
       return NextResponse.json(
@@ -16,8 +19,16 @@ export async function GET(
       );
     }
 
-    const authHeaders = getAuthHeaders(request);
-    const url = `${API_BASE_URL}/conference-sessions/${params.id}/media/info`;
+    if (!API_BASE_URL) {
+      console.error('[Media Info API] API_URL environment variable is not set');
+      return NextResponse.json(
+        { message: 'Конфигурация сервера не настроена. Обратитесь к администратору.' },
+        { status: 500 }
+      );
+    }
+
+    authHeaders = getAuthHeaders(request);
+    url = `${API_BASE_URL}/conference-sessions/${params.id}/media/info`;
     
     const response = await axios.get(url, {
       headers: authHeaders,
@@ -25,10 +36,32 @@ export async function GET(
     
     return NextResponse.json(response.data);
   } catch (error: any) {
-    console.error('[Media Info API] Error:', error.message);
+    const statusCode = error.response?.status || 500;
+    const errorMessage = error.response?.data?.message || error.message || 'Ошибка получения медиа-информации';
+    
+    console.error('[Media Info API] Error:', {
+      message: errorMessage,
+      status: statusCode,
+      url: url || 'unknown',
+      hasAuthHeaders: !!(authHeaders?.['Session'] || authHeaders?.['Authorization']),
+      responseData: error.response?.data,
+    });
+    
+    // Для 403 ошибки возвращаем более понятное сообщение
+    if (statusCode === 403) {
+      return NextResponse.json(
+        { 
+          message: 'Доступ запрещен. Возможно, у вас нет прав для просмотра медиа-информации этой конференции.',
+          details: errorMessage,
+          code: 'FORBIDDEN'
+        },
+        { status: 403 }
+      );
+    }
+    
     return NextResponse.json(
-      { message: error.response?.data?.message || 'Ошибка получения медиа-информации' },
-      { status: error.response?.status || 500 }
+      { message: errorMessage },
+      { status: statusCode }
     );
   }
 }

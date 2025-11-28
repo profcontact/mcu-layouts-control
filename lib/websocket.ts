@@ -2,6 +2,8 @@
 // WebSocket соединение устанавливается на сервере через API route /api/websocket/event-channel,
 // а клиент получает события через SSE
 
+import { logger } from './logger';
+
 let eventSource: EventSource | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -105,14 +107,14 @@ export function getCurrentBusId(): string | null {
 
 export function startEventChannel(sessionId: string): void {
   if (typeof window === 'undefined') {
-    console.warn('startEventChannel called on server side, skipping');
+    logger.warn('[EventChannel]', 'Called on server side, skipping');
     return;
   }
   
-  console.log('[EventChannel] startEventChannel called with sessionId:', sessionId ? sessionId.substring(0, 20) + '...' : 'MISSING');
+  logger.info('[EventChannel]', `Starting with sessionId: ${sessionId ? sessionId.substring(0, 20) + '...' : 'MISSING'}`);
   
   if (!sessionId) {
-    console.error('[EventChannel] sessionId is missing, cannot start Event Channel');
+    logger.error('[EventChannel]', 'sessionId is missing, cannot start Event Channel');
     return;
   }
   
@@ -120,14 +122,13 @@ export function startEventChannel(sessionId: string): void {
   stopEventChannel();
 
   // Сбрасываем флаги
-  syncMessageReceived = false;
   eventChannelConnected = false;
   eventChannelConnectedCallbacks = [];
   // НЕ очищаем conferenceEventCallbacks, чтобы сохранить подписки при переподключении
   // conferenceEventCallbacks = [];
   
   try {
-    console.log('[EventChannel] Connecting to server-side WebSocket proxy via SSE...');
+    logger.info('[EventChannel]', 'Connecting to server-side WebSocket proxy via SSE...');
     
     // Подключаемся к API route, который проксирует WebSocket через SSE
     // EventSource не поддерживает кастомные заголовки, поэтому передаем Session ID через query параметр
@@ -135,7 +136,7 @@ export function startEventChannel(sessionId: string): void {
     eventSource = new EventSource(`/api/websocket/event-channel?session=${encodeURIComponent(sessionId)}`);
     
     eventSource.onopen = () => {
-      console.log('[EventChannel] ✅ SSE connection opened');
+      logger.success('[EventChannel]', 'SSE connection opened');
       reconnectAttempts = 0;
     };
     
@@ -145,25 +146,25 @@ export function startEventChannel(sessionId: string): void {
         
         switch (data.type) {
           case 'connecting':
-            console.log('[EventChannel] 🔄', data.message);
+            logger.info('[EventChannel]', data.message);
             break;
             
           case 'connected':
-            console.log('[EventChannel] ✅', data.message);
+            logger.success('[EventChannel]', data.message);
             // Сохраняем busId если он пришел от сервера
             if (data.busId) {
               currentBusId = data.busId;
-              console.log('[EventChannel] 📝 BusId received:', currentBusId);
+              logger.info('[EventChannel]', `BusId received: ${currentBusId}`);
             }
             // Устанавливаем флаг подключения и вызываем колбэки
             eventChannelConnected = true;
-            console.log('[EventChannel] ✅ Event Channel connected, calling callbacks');
+            logger.success('[EventChannel]', 'Event Channel connected, calling callbacks');
             eventChannelConnectedCallbacks.forEach(callback => callback());
             eventChannelConnectedCallbacks = [];
             break;
             
           case 'pong':
-            console.log('[EventChannel] ✅ Received pong:', data.data);
+            logger.debug('[EventChannel]', 'Received pong:', data.data);
             break;
             
           case 'message':
@@ -174,27 +175,22 @@ export function startEventChannel(sessionId: string): void {
             // Согласно документации, при подключении сервер отправляет синхронизационное сообщение
             // где "message" отсутствует, но есть sequenceNumber
             if (messageClass === 'NumberedMessage' && !messageData.message) {
-              syncMessageReceived = true;
-              console.log('[EventChannel] 🔄 [SYNC] Синхронизационное сообщение - sequenceNumber:', messageData.sequenceNumber);
-              console.log('[EventChannel] ✅ [SYNC] Синхронизация завершена');
+              logger.info('[EventChannel]', `[SYNC] Sync message - sequenceNumber: ${messageData.sequenceNumber}`);
+              logger.success('[EventChannel]', '[SYNC] Synchronization completed');
             } else if (messageClass === 'BulkMessage') {
               const eventsCount = messageData.events?.length || 0;
-              console.log(`[EventChannel] 📦 [BulkMessage] 📦 [BULK] Пакет событий - количество: ${eventsCount}`);
+              logger.info('[EventChannel]', `[BULK] Bulk events - count: ${eventsCount}`);
               
               if (messageData.events && Array.isArray(messageData.events)) {
                 messageData.events.forEach((event: any, index: number) => {
                   const eventClass = event._class || 'unknown';
                   const eventInfo = getEventInfo(event);
                   
-                  console.log(`[EventChannel]   📨 [${eventInfo.category}] Событие ${index + 1}/${eventsCount}: ${eventInfo.name}`);
-                  console.log(`[EventChannel]      Оригинальное название: ${eventClass}`);
-                  console.log(`[EventChannel]      Полное сообщение:`, JSON.stringify(event, null, 2));
-                  if (eventInfo.description) {
-                    console.log(`[EventChannel]      Описание: ${eventInfo.description}`);
-                  }
-                  if (eventInfo.relatedTo) {
-                    console.log(`[EventChannel]      Связано с: ${eventInfo.relatedTo}`);
-                  }
+                  logger.event(eventInfo.category, `Event ${index + 1}/${eventsCount}: ${eventInfo.name}`, {
+                    class: eventClass,
+                    ...(eventInfo.description && { description: eventInfo.description }),
+                    ...(eventInfo.relatedTo && { relatedTo: eventInfo.relatedTo }),
+                  });
                   
                   // Вызываем колбэки для обработки событий конференции
                   if (event._class) {
@@ -202,7 +198,7 @@ export function startEventChannel(sessionId: string): void {
                       try {
                         callback(event);
                       } catch (error) {
-                        console.error('[EventChannel] ❌ Ошибка в колбэке события конференции:', error);
+                        logger.error('[EventChannel]', 'Error in conference event callback:', error);
                       }
                     });
                   }
@@ -213,41 +209,34 @@ export function startEventChannel(sessionId: string): void {
               const eventClass = innerEvent._class || 'unknown';
               const eventInfo = getEventInfo(innerEvent);
               
-              console.log(`[EventChannel] 📨 [${eventInfo.category}] Событие конференции - sequenceNumber: ${messageData.sequenceNumber}`);
-              console.log(`[EventChannel]    Название: ${eventInfo.name}`);
-              console.log(`[EventChannel]    Оригинальное название: ${eventClass}`);
-              console.log(`[EventChannel]    Полное сообщение:`, JSON.stringify(innerEvent, null, 2));
-              if (eventInfo.description) {
-                console.log(`[EventChannel]    Описание: ${eventInfo.description}`);
-              }
-              if (eventInfo.relatedTo) {
-                console.log(`[EventChannel]    Связано с: ${eventInfo.relatedTo}`);
-              }
+              logger.event(eventInfo.category, `Conference event - seq: ${messageData.sequenceNumber}`, {
+                name: eventInfo.name,
+                class: eventClass,
+                ...(eventInfo.description && { description: eventInfo.description }),
+                ...(eventInfo.relatedTo && { relatedTo: eventInfo.relatedTo }),
+              });
               
               // Вызываем колбэки для обработки событий конференции
               if (innerEvent._class) {
-                console.log(`[EventChannel] 🔔 Calling ${conferenceEventCallbacks.length} conference event callbacks for ${innerEvent._class}`);
+                logger.debug('[EventChannel]', `Calling ${conferenceEventCallbacks.length} callbacks for ${innerEvent._class}`);
                 conferenceEventCallbacks.forEach((callback, index) => {
                   try {
-                    console.log(`[EventChannel] 🔔 Calling callback ${index + 1}/${conferenceEventCallbacks.length}`);
                     callback(innerEvent);
-                    console.log(`[EventChannel] ✅ Callback ${index + 1} completed`);
                   } catch (error) {
-                    console.error(`[EventChannel] ❌ Ошибка в колбэке ${index + 1} события конференции:`, error);
+                    logger.error('[EventChannel]', `Error in callback ${index + 1}:`, error);
                   }
                 });
               } else {
-                console.warn('[EventChannel] ⚠️ innerEvent has no _class, skipping callbacks');
+                logger.warn('[EventChannel]', 'innerEvent has no _class, skipping callbacks');
               }
             } else {
               // Логируем любые другие типы сообщений
-              console.log(`[EventChannel] 📨 [UNKNOWN] Неизвестный тип сообщения: ${messageClass}`);
-              console.log('[EventChannel]    Ключи сообщения:', Object.keys(messageData));
+              logger.debug('[EventChannel]', `[UNKNOWN] Unknown message type: ${messageClass}`, Object.keys(messageData));
             }
             break;
             
           case 'error':
-            console.error('[EventChannel] ❌ Server error:', data.error);
+            logger.error('[EventChannel]', 'Server error:', data.error);
             // Если это ошибка авторизации, редиректим на вход
             const errorMessage = data.error?.toLowerCase() || '';
             if (errorMessage.includes('auth') || 
@@ -255,7 +244,7 @@ export function startEventChannel(sessionId: string): void {
                 errorMessage.includes('session') ||
                 errorMessage.includes('401') ||
                 errorMessage.includes('403')) {
-              console.error('[EventChannel] ❌ Auth error detected, redirecting to login');
+              logger.error('[EventChannel]', 'Auth error detected, redirecting to login');
               stopEventChannel();
               localStorage.removeItem('session_id');
               localStorage.removeItem('auth_token');
@@ -265,7 +254,7 @@ export function startEventChannel(sessionId: string): void {
             break;
             
           case 'closed':
-            console.log('[EventChannel] 🔌 Connection closed:', { code: data.code, reason: data.reason });
+            logger.info('[EventChannel]', `Connection closed - code: ${data.code}, reason: ${data.reason}`);
             
             // Сбрасываем флаг подключения при закрытии
             eventChannelConnected = false;
@@ -283,13 +272,11 @@ export function startEventChannel(sessionId: string): void {
             const maxAttemptsReached = reconnectAttempts >= MAX_RECONNECT_ATTEMPTS;
             
             if (isAuthError || maxAttemptsReached) {
-              console.error('[EventChannel] ❌ WebSocket closed due to auth error or max attempts reached, redirecting to login');
+              logger.error('[EventChannel]', 'WebSocket closed due to auth error or max attempts, redirecting to login');
               stopEventChannel();
-              // Очищаем данные сессии
               localStorage.removeItem('session_id');
               localStorage.removeItem('auth_token');
               localStorage.removeItem('login_token');
-              // Редирект на страницу входа
               window.location.href = '/login';
               return;
             }
@@ -297,21 +284,19 @@ export function startEventChannel(sessionId: string): void {
             // Пытаемся переподключиться если это не было намеренное закрытие
             if (data.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
               reconnectAttempts++;
-              console.log(`[EventChannel] 🔄 Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+              logger.info('[EventChannel]', `Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
               setTimeout(() => {
                 const newSessionId = localStorage.getItem('session_id');
                 if (newSessionId) {
                   startEventChannel(newSessionId);
                 } else {
-                  // Если sessionId отсутствует, редирект на вход
-                  console.error('[EventChannel] ❌ No sessionId found, redirecting to login');
+                  logger.error('[EventChannel]', 'No sessionId found, redirecting to login');
                   stopEventChannel();
                   window.location.href = '/login';
                 }
               }, 2000);
             } else if (data.code !== 1000) {
-              // Если превышено количество попыток и это не нормальное закрытие
-              console.error('[EventChannel] ❌ Max reconnection attempts reached, redirecting to login');
+              logger.error('[EventChannel]', 'Max reconnection attempts reached, redirecting to login');
               stopEventChannel();
               localStorage.removeItem('session_id');
               localStorage.removeItem('auth_token');
@@ -321,18 +306,17 @@ export function startEventChannel(sessionId: string): void {
             break;
             
           default:
-            console.log('[EventChannel] 📨 Unknown message type:', data.type, data);
+            logger.debug('[EventChannel]', 'Unknown message type:', data.type, data);
         }
       } catch (e) {
-        console.error('[EventChannel] ❌ Error parsing message:', e);
-        console.log('[EventChannel] Raw message:', event.data);
+        logger.error('[EventChannel]', 'Error parsing message:', e);
+        logger.debug('[EventChannel]', 'Raw message:', event.data);
       }
     };
     
     eventSource.onerror = (error) => {
-      console.error('[EventChannel] ❌ SSE error:', error);
-      console.error('[EventChannel] EventSource readyState:', eventSource?.readyState);
-      console.error('[EventChannel] EventSource URL:', eventSource?.url);
+      logger.error('[EventChannel]', 'SSE error:', error);
+      logger.debug('[EventChannel]', `EventSource readyState: ${eventSource?.readyState}, URL: ${eventSource?.url}`);
       
       // EventSource.CONNECTING = 0, EventSource.OPEN = 1, EventSource.CLOSED = 2
       // Если readyState === 0 (CONNECTING), это может означать, что соединение еще не установлено
@@ -342,7 +326,7 @@ export function startEventChannel(sessionId: string): void {
       // Если readyState === CONNECTING (0), соединение еще пытается подключиться
       // Если readyState === CLOSED (2), соединение закрыто
       if (readyState === EventSource.CLOSED) {
-        console.log('[EventChannel] 🔌 SSE connection closed');
+        logger.info('[EventChannel]', 'SSE connection closed');
         
         // Сбрасываем флаг подключения при закрытии
         eventChannelConnected = false;
@@ -352,7 +336,7 @@ export function startEventChannel(sessionId: string): void {
         const isAuthError = eventSource?.url?.includes('401') || eventSource?.url?.includes('403');
         
         if (isAuthError || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-          console.error('[EventChannel] ❌ SSE closed due to auth error or max attempts, redirecting to login');
+          logger.error('[EventChannel]', 'SSE closed due to auth error or max attempts, redirecting to login');
           stopEventChannel();
           localStorage.removeItem('session_id');
           localStorage.removeItem('auth_token');
@@ -364,20 +348,19 @@ export function startEventChannel(sessionId: string): void {
         // Пытаемся переподключиться
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts++;
-          console.log(`[EventChannel] 🔄 Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+          logger.info('[EventChannel]', `Reconnecting (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
           setTimeout(() => {
             const newSessionId = localStorage.getItem('session_id');
             if (newSessionId) {
               startEventChannel(newSessionId);
             } else {
-              // Если sessionId отсутствует, редирект на вход
-              console.error('[EventChannel] ❌ No sessionId found, redirecting to login');
+              logger.error('[EventChannel]', 'No sessionId found, redirecting to login');
               stopEventChannel();
               window.location.href = '/login';
             }
           }, 2000);
         } else {
-          console.error('[EventChannel] ❌ Max reconnection attempts reached, redirecting to login');
+          logger.error('[EventChannel]', 'Max reconnection attempts reached, redirecting to login');
           stopEventChannel();
           localStorage.removeItem('session_id');
           localStorage.removeItem('auth_token');
@@ -385,16 +368,15 @@ export function startEventChannel(sessionId: string): void {
           window.location.href = '/login';
         }
       } else if (readyState === EventSource.CONNECTING) {
-        // Если соединение все еще пытается подключиться, просто логируем
-        console.log('[EventChannel] ⏳ SSE still connecting, readyState:', readyState);
+        logger.debug('[EventChannel]', `SSE still connecting, readyState: ${readyState}`);
       }
     };
     
-    console.log('[EventChannel] ✅ EventSource created, waiting for connection...');
+    logger.success('[EventChannel]', 'EventSource created, waiting for connection...');
     
   } catch (error) {
-    console.error('[EventChannel] ❌ Failed to start Event Channel:', error);
-    console.error('[EventChannel] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    logger.error('[EventChannel]', 'Failed to start Event Channel:', error);
+    logger.debug('[EventChannel]', 'Error stack:', error instanceof Error ? error.stack : 'No stack');
   }
 }
 
@@ -405,7 +387,6 @@ export function stopEventChannel(): void {
   }
   
   reconnectAttempts = 0;
-  syncMessageReceived = false;
   currentBusId = null; // Сбрасываем busId при остановке
   eventChannelConnected = false; // Сбрасываем флаг подключения
   eventChannelConnectedCallbacks = []; // Очищаем колбэки ожидания подключения
@@ -415,16 +396,15 @@ export function stopEventChannel(): void {
 
 // Функция для подписки на события конференции
 export function onConferenceEvent(callback: ConferenceEventCallback): () => void {
-  console.log('[EventChannel] 📝 Registering conference event callback. Total callbacks:', conferenceEventCallbacks.length + 1);
   conferenceEventCallbacks.push(callback);
-  console.log('[EventChannel] ✅ Conference event callback registered. Total callbacks:', conferenceEventCallbacks.length);
+  logger.success('[EventChannel]', `Conference event callback registered. Total: ${conferenceEventCallbacks.length}`);
   
   // Возвращаем функцию для отписки
   return () => {
     const index = conferenceEventCallbacks.indexOf(callback);
     if (index > -1) {
       conferenceEventCallbacks.splice(index, 1);
-      console.log('[EventChannel] 🗑️ Conference event callback unregistered. Total callbacks:', conferenceEventCallbacks.length);
+      logger.cleanup('[EventChannel]', `Conference event callback unregistered. Total: ${conferenceEventCallbacks.length}`);
     }
   };
 }

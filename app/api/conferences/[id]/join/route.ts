@@ -4,11 +4,27 @@ import { getAuthHeaders, hasAuth } from '../../../_helpers/auth';
 
 const API_BASE_URL = process.env.API_URL;
 
+// Проверка переменных окружения при загрузке модуля (только в dev режиме)
+if (process.env.NODE_ENV === 'development' && !API_BASE_URL) {
+  console.error('[Join API] ⚠️  WARNING: API_URL environment variable is not set!');
+  console.error('[Join API] Make sure .env.local file exists in the project root with API_URL variable');
+  console.error('[Join API] File location should be: .env.local');
+  console.error('[Join API] Required format: API_URL=https://your-api-url/api/rest');
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!API_BASE_URL) {
+      console.error('[Join API] API_URL environment variable is not set');
+      return NextResponse.json(
+        { message: 'Конфигурация сервера не настроена. Обратитесь к администратору.' },
+        { status: 500 }
+      );
+    }
+
     if (!hasAuth(request)) {
       return NextResponse.json(
         { message: 'Токен авторизации отсутствует' },

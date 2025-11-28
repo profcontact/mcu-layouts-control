@@ -28,10 +28,14 @@ npm install
 2. Создайте файл `.env.local` в корне проекта:
 ```env
 API_URL=https://ivcs_domen/api/rest
-WS_HOST=ivcs_domen
+WS_HOST=ws://ivcs_domen
+NEXT_PUBLIC_WS_HOST=ivcs_domen
 ```
 
-**Важно:** Используйте `API_URL` и `WS_HOST` (без `NEXT_PUBLIC_`), так как API routes работают на сервере и не должны быть доступны в браузере.
+**Важно:** 
+- `API_URL` - HTTP URL для REST API (с протоколом http:// или https://)
+- `WS_HOST` - WebSocket URL для server-side соединений (с протоколом ws:// или wss://)
+- `NEXT_PUBLIC_WS_HOST` - только домен (БЕЗ протокола) для WebRTC2 WebSocket на клиенте. Протокол (ws:// или wss://) добавляется автоматически в зависимости от текущего протокола страницы
 
 3. Запустите dev сервер:
 ```bash
