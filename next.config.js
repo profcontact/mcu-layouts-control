@@ -13,6 +13,9 @@ const nextConfig = {
     
     return config;
   },
+  // Добавляем пустой turbopack конфиг для совместимости с Next.js 16
+  // Это позволяет использовать webpack конфиг в Next.js 16
+  turbopack: {},
   // Отключаем оптимизацию для react-dnd, чтобы избежать проблем с vendor chunks
   experimental: {
     optimizePackageImports: ['react-dnd', 'react-dnd-html5-backend'],
