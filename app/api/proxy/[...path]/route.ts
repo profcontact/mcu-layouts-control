@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthHeaders } from '../../_helpers/auth';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const API_BASE_URL = process.env.API_URL;
 

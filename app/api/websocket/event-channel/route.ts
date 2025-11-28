@@ -3,6 +3,7 @@ import { getAuthHeaders } from '../../_helpers/auth';
 import { setWebSocketConnection, removeWebSocketConnection } from '../_ws-storage';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const WS_HOST = process.env.WS_HOST;
 
