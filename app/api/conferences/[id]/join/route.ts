@@ -19,7 +19,7 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const params = await context.params;
+  const { id } = await context.params;
   try {
     if (!API_BASE_URL) {
       console.error('[Join API] API_URL environment variable is not set');
@@ -36,7 +36,6 @@ export async function POST(
       );
     }
 
-    const { id } = params;
     const authHeaders = getAuthHeaders(request);
     const body = await request.json();
 
