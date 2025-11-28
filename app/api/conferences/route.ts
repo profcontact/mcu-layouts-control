@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getAuthHeaders, hasAuth } from '../_helpers/auth';
 
-const API_BASE_URL = process.env.API_URL || 'https://ivcs.profcontact.by/api/rest';
+const API_BASE_URL = process.env.API_URL;
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
         orderAsc: false, // Сортировка по убыванию даты (новые сначала)
       },
     });
-    console.log(response.data);
 
     return NextResponse.json(response.data);
   } catch (error: any) {

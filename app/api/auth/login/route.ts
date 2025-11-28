@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.API_URL || 'https://ivcs.profcontact.by/api/rest';
+const API_BASE_URL = process.env.API_URL;
 
 export async function POST(request: NextRequest) {
   try {

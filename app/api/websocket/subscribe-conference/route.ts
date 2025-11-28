@@ -14,11 +14,6 @@ export async function POST(request: NextRequest) {
     const sessionIdFromQuery = request.nextUrl.searchParams.get('session');
     const sessionId = sessionIdFromHeaders || sessionIdFromQuery;
     
-    console.log('[Subscribe Conference] Request received');
-    console.log('[Subscribe Conference] SessionId from headers:', sessionIdFromHeaders ? sessionIdFromHeaders.substring(0, 20) + '...' : 'MISSING');
-    console.log('[Subscribe Conference] SessionId from query:', sessionIdFromQuery ? sessionIdFromQuery.substring(0, 20) + '...' : 'MISSING');
-    console.log('[Subscribe Conference] Final sessionId:', sessionId ? sessionId.substring(0, 20) + '...' : 'MISSING');
-    
     if (!sessionId) {
       return NextResponse.json(
         { error: 'Session ID is required. Provide it in Session header or ?session query parameter.' },
@@ -36,24 +31,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Subscribe Conference] Subscribing to conference events:', conferenceSessionId);
-    console.log('[Subscribe Conference] Looking for WebSocket connection with sessionId:', sessionId.substring(0, 20) + '...');
-
     // Получаем WebSocket соединение для данного sessionId
     const wsConnection = getWebSocketConnection(sessionId);
-    
-    console.log('[Subscribe Conference] WebSocket connection found:', !!wsConnection);
-    if (wsConnection) {
-      console.log('[Subscribe Conference] WebSocket state:', wsConnection.ws?.readyState);
-      console.log('[Subscribe Conference] BusId:', wsConnection.busId);
-    } else {
-      // Пробуем найти соединение по всем доступным sessionId
-      const allConnections = getAllWebSocketConnections();
-      console.log('[Subscribe Conference] Total active connections:', allConnections.size);
-      allConnections.forEach((conn, sid) => {
-        console.log('[Subscribe Conference] Available connection for sessionId:', sid.substring(0, 20) + '...');
-      });
-    }
     
     if (!wsConnection || !wsConnection.ws) {
       return NextResponse.json(
@@ -108,6 +87,7 @@ export async function POST(request: NextRequest) {
       // Отправляем сообщения подписки
       for (const message of subscriptionMessages) {
         ws.send(JSON.stringify(message));
+        // Логируем событие подписки
         console.log('[Subscribe Conference] 📤 Sent subscription message:', message.endpoint);
       }
 

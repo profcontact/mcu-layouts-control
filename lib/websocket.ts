@@ -5,7 +5,6 @@
 let eventSource: EventSource | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
-let syncMessageReceived = false; // Флаг получения синхронизационного сообщения
 let currentBusId: string | null = null; // Текущий busId из WebSocket соединения
 let eventChannelConnected = false; // Флаг успешного подключения Event Channel
 let eventChannelConnectedCallbacks: Array<() => void> = []; // Колбэки для ожидания подключения

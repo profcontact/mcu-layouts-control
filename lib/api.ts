@@ -5,7 +5,6 @@ let websocketModule: typeof import('./websocket') | null = null;
 if (typeof window !== 'undefined') {
   import('./websocket').then((module) => {
     websocketModule = module;
-    console.log('[API] WebSocket module preloaded');
   });
 }
 
@@ -37,13 +36,6 @@ export const getAuthHeaders = (): Record<string, string> => {
   
   return headers;
 };
-
-export interface User {
-  id: string;
-  name: string;
-  email?: string;
-  avatar?: string;
-}
 
 export interface Conference {
   // Основные поля из PlannedConferenceSessionPersonalSummaryInfoRestDTO
@@ -77,7 +69,6 @@ export interface Participant {
   userId: string;
   name: string;
   avatar?: string;
-  position?: { row: number; col: number; width: number; height: number };
   roles?: string[]; // Роли участника (ATTENDEE, MODERATOR, SPEAKER и т.д.)
   isRegisteredUser?: boolean; // Зарегистрированный или не зарегистрированный участник
   mediaState?: 'AUDIO' | 'VIDEO' | 'AUDIO_VIDEO' | 'NONE'; // Состояние медиа потока участника
@@ -135,99 +126,61 @@ export const authAPI = {
     }
 
     const data = await response.json();
-    console.log('Login response data:', data);
     
     // Проверяем разные возможные поля для токена (приоритет sessionId, затем loginToken)
     const sessionId = data.sessionId;
     const loginToken = data.loginToken;
     const token = sessionId || loginToken || data.token || data.access_token || data.accessToken || data.authToken || data.auth_token;
     
-    console.log('Extracted token:', token ? 'Token found' : 'Token not found');
-    console.log('SessionId:', sessionId ? `${sessionId.substring(0, 20)}...` : 'none');
-    console.log('LoginToken:', loginToken ? `${loginToken.substring(0, 20)}...` : 'none');
-    console.log('Token value:', token ? `${token.substring(0, 20)}...` : 'none');
-    
     if (token) {
       // Сохраняем sessionId как основной токен, если он есть
       if (sessionId) {
         localStorage.setItem('auth_token', sessionId);
         localStorage.setItem('session_id', sessionId);
-        console.log('✅ Using sessionId as auth token:', sessionId.substring(0, 20) + '...');
         
         // Запускаем Event Channel для поддержания сессии активной
         // Сессия истекает через 1 минуту без активного Event Channel
         if (typeof window !== 'undefined') {
-          console.log('🚀 Attempting to start Event Channel with sessionId:', sessionId.substring(0, 20) + '...');
-          
           // Пробуем использовать предзагруженный модуль или загружаем динамически
           const startWebSocket = async () => {
-            console.log('🔵 [API] startWebSocket function called');
-            console.log('🔵 [API] sessionId available:', !!sessionId);
-            console.log('🔵 [API] websocketModule available:', !!websocketModule);
-            
             try {
               let module = websocketModule;
               if (!module) {
-                console.log('📦 [API] Loading WebSocket module dynamically...');
                 module = await import('./websocket');
                 websocketModule = module;
-                console.log('✅ [API] WebSocket module loaded dynamically');
-              } else {
-                console.log('✅ [API] Using preloaded WebSocket module');
               }
-              
-              console.log('🔵 [API] Module object:', module);
-              console.log('🔵 [API] startEventChannel function exists:', typeof module.startEventChannel === 'function');
               
               if (typeof module.startEventChannel === 'function') {
-                console.log('🔌 [API] Calling startEventChannel with sessionId:', sessionId.substring(0, 20) + '...');
                 module.startEventChannel(sessionId);
-                console.log('✅ [API] startEventChannel called successfully');
               } else {
-                console.error('❌ [API] startEventChannel is not a function! Module:', module);
+                console.error('[API] startEventChannel is not a function');
               }
             } catch (error) {
-              console.error('❌ [API] Failed to load/start WebSocket module:', error);
-              console.error('❌ [API] Error details:', error instanceof Error ? error.message : String(error));
-              if (error instanceof Error) {
-                console.error('❌ [API] Error stack:', error.stack);
-              }
+              console.error('[API] Failed to load/start WebSocket module:', error);
             }
           };
           
           // Запускаем после небольшой задержки, чтобы убедиться что localStorage обновлен
-          console.log('⏰ [API] Scheduling WebSocket start in 200ms...');
           setTimeout(() => {
-            console.log('⏰ [API] Timeout fired, starting WebSocket...');
             startWebSocket();
           }, 200);
-        } else {
-          console.warn('⚠️ Window is undefined, cannot start Event Channel');
         }
       } else {
         localStorage.setItem('auth_token', token);
-        console.log('Using token as auth token:', token.substring(0, 20) + '...');
       }
       
       // Сохраняем loginToken отдельно, если он есть и отличается
       if (loginToken && loginToken !== token) {
         localStorage.setItem('login_token', loginToken);
-        console.log('Saved loginToken separately');
       }
-      
-      // Проверяем, что sessionId сохранен
-      const savedSessionId = localStorage.getItem('session_id');
-      console.log('Saved sessionId check:', savedSessionId ? 'OK' : 'MISSING');
       
       // Убеждаемся, что токен сохранился
       const savedToken = localStorage.getItem('auth_token');
-      console.log('Token saved to localStorage:', savedToken ? 'Success' : 'Failed');
       
       if (savedToken !== token) {
         throw new Error('Не удалось сохранить токен авторизации');
       }
     } else {
-      console.warn('Токен не найден в ответе API. Доступные поля:', Object.keys(data));
       throw new Error('Токен авторизации не был получен от сервера');
     }
     
@@ -244,20 +197,6 @@ export const authAPI = {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('session_id');
     localStorage.removeItem('login_token');
-  },
-
-  getCurrentUser: async (): Promise<User> => {
-    const response = await fetch('/api/auth/me', {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Ошибка получения пользователя');
-    }
-
-    return response.json();
   },
 };
 
@@ -340,26 +279,8 @@ export const conferencesAPI = {
 
     const data = await response.json();
     
-    console.log('[conferencesAPI.getMediaInfo] Raw response:', JSON.stringify(data, null, 2));
-    console.log('[conferencesAPI.getMediaInfo] Participants array:', data.participants);
-    console.log('[conferencesAPI.getMediaInfo] Participants count:', data.participants?.length || 0);
-    
     // Преобразуем участников из ParticipantRestDTO в формат Participant
-    const participants: Participant[] = (data.participants || []).map((p: any, index: number) => {
-      console.log(`[conferencesAPI.getMediaInfo] Processing participant ${index}:`, {
-        participantId: p.participantId,
-        id: p.id,
-        profileId: p.profileId,
-        name: p.name,
-        avatarResourceId: p.avatarResourceId,
-        avatarResource: p.avatarResource,
-        mediaState: p.mediaState,
-        webMediaInfo: p.webMediaInfo,
-        speakerStreamInfoState: p.webMediaInfo?.speakerStreamInfo?.state,
-        screenShareStreamInfoState: p.webMediaInfo?.screenShareStreamInfo?.state,
-        keys: Object.keys(p),
-      });
-      
+    const participants: Participant[] = (data.participants || []).map((p: any) => {
       // Формируем URL аватара
       // В ответе API используется avatarResourceId
       let avatarUrl: string | undefined = undefined;
@@ -376,8 +297,7 @@ export const conferencesAPI = {
       const participantId = p.participantId;
       
       if (!participantId) {
-        console.error(`[conferencesAPI.getMediaInfo] Participant ${index} without participantId:`, p);
-        console.error(`[conferencesAPI.getMediaInfo] Available keys:`, Object.keys(p));
+        console.error('[conferencesAPI.getMediaInfo] Participant without participantId:', p);
       }
       
       // Получаем состояние медиа из webMediaInfo.speakerStreamInfo.state
@@ -387,7 +307,7 @@ export const conferencesAPI = {
       const screenShareState = p.webMediaInfo?.screenShareStreamInfo?.state;
       const demonstrationType = screenShareState && screenShareState !== 'NONE' ? 'SCREEN_SHARE' : undefined;
       
-      const transformed = {
+      return {
         id: participantId, // Используем participantId из API напрямую
         userId: p.profileId || participantId,
         name: p.name || 'Без имени',
@@ -397,30 +317,7 @@ export const conferencesAPI = {
         mediaState: mediaState, // Состояние медиа из webMediaInfo.speakerStreamInfo.state
         demonstrationType: demonstrationType, // Состояние демонстрации из webMediaInfo.screenShareStreamInfo.state
       };
-      
-      console.log(`[conferencesAPI.getMediaInfo] Transformed participant ${index}:`, {
-        original: { 
-          participantId: p.participantId, 
-          profileId: p.profileId, 
-          name: p.name, 
-          avatarResourceId: p.avatarResourceId,
-          mediaState: p.mediaState,
-          speakerStreamInfoState: p.webMediaInfo?.speakerStreamInfo?.state,
-          screenShareStreamInfoState: p.webMediaInfo?.screenShareStreamInfo?.state,
-        },
-        transformed: { 
-          id: transformed.id, 
-          userId: transformed.userId, 
-          name: transformed.name, 
-          mediaState: transformed.mediaState,
-          demonstrationType: transformed.demonstrationType,
-        },
-      });
-      
-      return transformed;
     });
-    
-    console.log('[conferencesAPI.getMediaInfo] Final transformed participants count:', participants.length);
     
     return {
       ...data,
@@ -465,23 +362,15 @@ export const conferencesAPI = {
       ? `/api/websocket/subscribe-conference?session=${encodeURIComponent(sessionId)}`
       : '/api/websocket/subscribe-conference';
     
-    console.log('[conferencesAPI] Subscribing to events for conference:', conferenceSessionId);
-    console.log('[conferencesAPI] SessionId:', sessionId ? sessionId.substring(0, 20) + '...' : 'MISSING');
-    
     // Ждем подключения Event Channel перед подпиской
     if (typeof window !== 'undefined') {
       try {
         const { waitForEventChannelConnection } = await import('./websocket');
-        console.log('[conferencesAPI] Waiting for Event Channel connection...');
         await waitForEventChannelConnection(15000); // Ждем до 15 секунд
-        console.log('[conferencesAPI] ✅ Event Channel connected');
         
         // Дополнительная задержка для того, чтобы сервер успел сохранить WebSocket соединение
-        console.log('[conferencesAPI] Waiting for WebSocket connection to be stored on server...');
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1 секунда задержка для сохранения соединения
-        console.log('[conferencesAPI] Proceeding with subscription');
       } catch (err: any) {
-        console.warn('[conferencesAPI] ⚠️ Event Channel connection wait failed:', err.message);
         // Продолжаем попытки подписки даже если Event Channel не подключен
       }
     }
@@ -492,12 +381,7 @@ export const conferencesAPI = {
     for (let attempt = 0; attempt < 5; attempt++) {
       if (attempt > 0) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 1s, 2s, 4s, 5s, 5s
-        console.log(`[conferencesAPI] Retrying subscription (attempt ${attempt + 1}/5) after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        // Первая попытка - дополнительная задержка уже была добавлена выше после waitForEventChannelConnection
-        // Здесь просто логируем первую попытку
-        console.log(`[conferencesAPI] Attempting subscription (attempt ${attempt + 1}/5)...`);
       }
       
       try {
@@ -510,7 +394,6 @@ export const conferencesAPI = {
         if (!response.ok) {
           const error = await response.json();
           lastError = new Error(error.error || 'Ошибка подписки на события конференции');
-          console.error(`[conferencesAPI] Subscription attempt ${attempt + 1} failed:`, error);
           
           // Если это не ошибка "connection not found", не повторяем
           if (!error.error?.includes('WebSocket connection not found')) {
@@ -519,12 +402,13 @@ export const conferencesAPI = {
           continue;
         }
 
-        const result = await response.json();
-        console.log('[conferencesAPI] ✅ Subscribed to conference events:', result);
+        await response.json();
         return;
       } catch (err: any) {
         lastError = err;
-        console.error(`[conferencesAPI] Subscription attempt ${attempt + 1} error:`, err);
+        if (attempt === 4) {
+          console.error('[conferencesAPI] Subscription failed after all attempts:', err);
+        }
       }
     }
     
@@ -532,32 +416,6 @@ export const conferencesAPI = {
     if (lastError) {
       throw lastError;
     }
-  },
-};
-
-export const participantsAPI = {
-  getByConference: async (conferenceId: string): Promise<Participant[]> => {
-    console.log('[participantsAPI] Fetching participants for conference:', conferenceId);
-    const response = await fetch(`/api/conferences/${conferenceId}/participants`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-
-    console.log('[participantsAPI] Response status:', response.status);
-    console.log('[participantsAPI] Response ok:', response.ok);
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('[participantsAPI] Error response:', error);
-      throw new Error(error.message || 'Ошибка получения участников');
-    }
-
-    const data = await response.json();
-    console.log('[participantsAPI] Received data:', data);
-    console.log('[participantsAPI] Data type:', Array.isArray(data) ? 'array' : typeof data);
-    console.log('[participantsAPI] Data length:', Array.isArray(data) ? data.length : 'not an array');
-    
-    return data;
   },
 };
 

@@ -17,7 +17,6 @@ interface ApiEndpoint {
 
 export default function ApiTestPage() {
   const router = useRouter();
-  const [openApiSpec, setOpenApiSpec] = useState<any>(null);
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [selectedEndpoint, setSelectedEndpoint] = useState<ApiEndpoint | null>(null);
   const [pathParams, setPathParams] = useState<Record<string, string>>({});
@@ -38,7 +37,6 @@ export default function ApiTestPage() {
     fetch('/clients-openapi.json')
       .then((res) => res.json())
       .then((data) => {
-        setOpenApiSpec(data);
         // Парсим эндпоинты из спецификации
         const parsedEndpoints: ApiEndpoint[] = [];
         if (data.paths) {

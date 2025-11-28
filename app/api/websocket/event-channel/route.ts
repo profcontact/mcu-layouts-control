@@ -2,8 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAuthHeaders } from '../../_helpers/auth';
 import { setWebSocketConnection, removeWebSocketConnection } from '../_ws-storage';
 
-const API_BASE_URL = process.env.API_URL || 'https://ivcs.profcontact.by/api/rest';
-const WS_HOST = 'ivcs.profcontact.by';
+const WS_HOST = process.env.WS_HOST;
 
 /**
  * API Route для проксирования WebSocket Event Channel через Server-Sent Events (SSE)
@@ -11,22 +10,14 @@ const WS_HOST = 'ivcs.profcontact.by';
  * а клиент получает события через SSE
  */
 export async function GET(request: NextRequest) {
-  console.log('[Server WebSocket] 📥 Event Channel request received');
-  console.log('[Server WebSocket] Request URL:', request.url);
-  console.log('[Server WebSocket] Request method:', request.method);
-  
   // EventSource не поддерживает кастомные заголовки, поэтому получаем Session ID из query параметра
   // Также пробуем получить из заголовков на случай если используется другой клиент
   const sessionIdFromQuery = request.nextUrl.searchParams.get('session');
   const authHeaders = getAuthHeaders(request);
   const sessionId = sessionIdFromQuery || authHeaders['Session'] || authHeaders['session'];
   
-  console.log('[Server WebSocket] SessionId from query:', sessionIdFromQuery ? sessionIdFromQuery.substring(0, 20) + '...' : 'MISSING');
-  console.log('[Server WebSocket] SessionId from headers:', authHeaders['Session'] ? authHeaders['Session'].substring(0, 20) + '...' : 'MISSING');
-  console.log('[Server WebSocket] Final sessionId:', sessionId ? sessionId.substring(0, 20) + '...' : 'MISSING');
-  
   if (!sessionId) {
-    console.error('[Server WebSocket] ❌ No sessionId provided');
+    console.error('[Server WebSocket] No sessionId provided');
     return new Response(
       JSON.stringify({ error: 'Session ID is required. Provide it as query parameter: ?session=YOUR_SESSION_ID' }),
       { 
@@ -35,8 +26,6 @@ export async function GET(request: NextRequest) {
       }
     );
   }
-  
-  console.log('[Server WebSocket] ✅ Starting Event Channel with sessionId:', sessionId.substring(0, 20) + '...');
 
   // Создаем ReadableStream для SSE
   const encoder = new TextEncoder();
@@ -49,10 +38,7 @@ export async function GET(request: NextRequest) {
       try {
         // Генерируем busId
         const busId = crypto.randomUUID();
-        console.log('[Server WebSocket] Bus ID:', busId);
         const wsUrl = `wss://${WS_HOST}/websocket/eventbus/${busId}/json/source/VIDEOCONFERENCE?Session=${encodeURIComponent(sessionId)}`;
-        
-        console.log('[Server WebSocket] Connecting to:', wsUrl.replace(sessionId, 'SESSION_ID_HIDDEN'));
         
         // Используем динамический импорт для ws (если установлен) или встроенный WebSocket
         let WebSocketClass: any;
@@ -82,13 +68,10 @@ export async function GET(request: NextRequest) {
         // Если используется библиотека 'ws', она поддерживает заголовки напрямую
         ws = new WebSocketClass(wsUrl, wsOptions);
         
-        console.log('[Server WebSocket] WebSocket instance created');
-        console.log('[Server WebSocket] WebSocket URL:', wsUrl.replace(sessionId, 'SESSION_ID_HIDDEN'));
-        
         // Устанавливаем таймаут для подключения (10 секунд)
         connectionTimeout = setTimeout(() => {
           if (ws && ws.readyState !== 1) { // WebSocket.OPEN
-            console.error('[Server WebSocket] ⏱️ Connection timeout after 10 seconds');
+            console.error('[Server WebSocket] Connection timeout after 10 seconds');
             ws.close();
             sendSSE({ 
               type: 'error', 
@@ -112,18 +95,11 @@ export async function GET(request: NextRequest) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
           }
-          console.log('[Server WebSocket] ✅ Connected to Event Channel');
-          console.log('[Server WebSocket] SessionId:', sessionId.substring(0, 20) + '...');
-          console.log('[Server WebSocket] BusId:', busId);
-          console.log('[Server WebSocket] WebSocket readyState:', ws.readyState);
           
           // Сохраняем WebSocket соединение для возможности отправки сообщений подписки
           // Проверяем, что соединение действительно открыто
           if (ws.readyState === 1) { // WebSocket.OPEN
             setWebSocketConnection(sessionId, { ws, busId });
-            console.log('[Server WebSocket] ✅ WebSocket connection stored successfully');
-          } else {
-            console.warn('[Server WebSocket] ⚠️ WebSocket not in OPEN state, not storing:', ws.readyState);
           }
           
           // Отправляем busId клиенту при подключении
@@ -134,7 +110,6 @@ export async function GET(request: NextRequest) {
             if (ws && ws.readyState === 1) { // WebSocket.OPEN
               const pingNumber = Date.now();
               ws.send(`ping-${pingNumber}`);
-              console.log('[Server WebSocket] 📤 Sent ping:', pingNumber);
             }
           }, 25000);
         });
@@ -145,7 +120,6 @@ export async function GET(request: NextRequest) {
             
             // Обрабатываем pong сообщения
             if (message.startsWith('pong-')) {
-              console.log('[Server WebSocket] ✅ [PING/PONG] Получен pong:', message);
               sendSSE({ type: 'pong', data: message });
               return;
             }
@@ -176,6 +150,7 @@ export async function GET(request: NextRequest) {
                 eventInfo = ` [BULK: ${jsonData.events?.length || 0} событий]`;
               }
               
+              // Логируем событие WebSocket
               console.log(`[Server WebSocket] 📨${eventInfo} Получено сообщение: ${messageClass}`);
               
               // Отправляем сообщение клиенту через SSE
@@ -185,8 +160,6 @@ export async function GET(request: NextRequest) {
               });
             } catch (e) {
               // Если не JSON, отправляем как текст
-              console.log('[Server WebSocket] ⚠️ [TEXT] Сообщение не JSON, отправляем как текст');
-              
               sendSSE({ 
                 type: 'message', 
                 data: { text: message } 
@@ -202,15 +175,7 @@ export async function GET(request: NextRequest) {
         });
 
         ws.on('error', (error: any) => {
-          console.error('[Server WebSocket] ❌ WebSocket error:', error);
-          console.error('[Server WebSocket] Error details:', {
-            message: error.message,
-            code: error.code,
-            errno: error.errno,
-            syscall: error.syscall,
-            address: error.address,
-            port: error.port,
-          });
+          console.error('[Server WebSocket] WebSocket error:', error);
           
           // Отправляем детальную информацию об ошибке клиенту
           try {
@@ -229,8 +194,6 @@ export async function GET(request: NextRequest) {
         });
 
         ws.on('close', (code: number, reason: Buffer) => {
-          console.log('[Server WebSocket] 🔌 Closed:', { code, reason: reason.toString() });
-          
           // Удаляем WebSocket соединение из хранилища
           removeWebSocketConnection(sessionId);
           
@@ -249,8 +212,7 @@ export async function GET(request: NextRequest) {
         });
 
       } catch (error) {
-        console.error('[Server WebSocket] ❌ Failed to start:', error);
-        console.error('[Server WebSocket] Error stack:', error instanceof Error ? error.stack : 'No stack');
+        console.error('[Server WebSocket] Failed to start:', error);
         
         try {
           const errorMessage = encoder.encode(
@@ -276,7 +238,6 @@ export async function GET(request: NextRequest) {
     },
 
     cancel() {
-      console.log('[Server WebSocket] Stream cancelled');
       if (connectionTimeout) {
         clearTimeout(connectionTimeout);
         connectionTimeout = null;

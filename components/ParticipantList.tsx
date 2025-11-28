@@ -26,10 +26,6 @@ export default function ParticipantList({
   applying,
   handleApply,
 }: ParticipantListProps) {
-  console.log('[ParticipantList] Received participants:', participants);
-  console.log('[ParticipantList] Participants count:', participants.length);
-  console.log('[ParticipantList] Participants type:', Array.isArray(participants) ? 'array' : typeof participants);
-  
   return (
     <div className="flex flex-col h-full text-white">
       {/* Заголовок панели */}

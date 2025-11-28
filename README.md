@@ -27,10 +27,11 @@ npm install
 
 2. Создайте файл `.env.local` в корне проекта:
 ```env
-API_URL=https://ivcs.profcontact.by/api
+API_URL=https://ivcs_domen/api/rest
+WS_HOST=ivcs_domen
 ```
 
-**Важно:** Используйте `API_URL` (без `NEXT_PUBLIC_`), так как API routes работают на сервере и не должны быть доступны в браузере.
+**Важно:** Используйте `API_URL` и `WS_HOST` (без `NEXT_PUBLIC_`), так как API routes работают на сервере и не должны быть доступны в браузере.
 
 3. Запустите dev сервер:
 ```bash
@@ -61,7 +62,6 @@ MCU-Layout/
 
 ## API Интеграция
 
-Приложение интегрировано с API по адресу: https://ivcs.profcontact.by/doc/api/rest.html
 
 ### Основные эндпоинты:
 

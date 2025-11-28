@@ -6,7 +6,7 @@
     "version" : "2.26.2"
   },
   "servers" : [ {
-    "url" : "https://ivcs.profcontact.by/api/rest",
+    "url" : "https://ivcs_domen/api/rest",
     "description" : "The stage API server"
   } ],
   "tags" : [ {

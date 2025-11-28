@@ -80,11 +80,6 @@ export default function ConferencePage() {
         const confData = results[0].status === 'fulfilled' ? results[0].value : null;
         const mediaInfoData = results[1].status === 'fulfilled' ? results[1].value : null;
         
-        console.log('[ConferencePage] Media info data:', mediaInfoData);
-        console.log('[ConferencePage] Media info participants:', mediaInfoData?.participants);
-        console.log('[ConferencePage] Media info participants type:', Array.isArray(mediaInfoData?.participants) ? 'array' : typeof mediaInfoData?.participants);
-        console.log('[ConferencePage] Media info participants length:', mediaInfoData?.participants?.length || 0);
-        
         const participantsData = mediaInfoData?.participants || []; // Извлекаем участников из медиа-информации
         const layoutDataRaw = results[2].status === 'fulfilled' ? results[2].value : null;
         const layoutsData = results[3].status === 'fulfilled' ? results[3].value : [];
@@ -162,14 +157,6 @@ export default function ConferencePage() {
                     ? mapping.participantId 
                     : undefined;
                   
-                  console.log('[ConferencePage] Processing cell:', {
-                    cellNumber: cellConfig.cellNumber,
-                    mapping: mapping,
-                    participantId: participantId,
-                    hasParticipantId: !!participantId,
-                    cellType: mapping?.cellType,
-                  });
-                  
                   return {
                     id: `cell-${cellConfig.cellNumber}`,
                     row: 0, // Не используется при наличии left/top
@@ -200,13 +187,6 @@ export default function ConferencePage() {
                   const cellNumber = index + 1; // cellNumber начинается с 1
                   const mapping = cellMappingMap.get(cellNumber) as any;
                   
-                  console.log('[ConferencePage] Processing cell (old format):', {
-                    cellNumber: cellNumber,
-                    mapping: mapping,
-                    hasParticipantId: !!mapping?.participantId,
-                    cellType: mapping?.cellType,
-                  });
-                  
                   return {
                     ...cell,
                     // Устанавливаем participantId если он есть в mapping, независимо от cellType
@@ -229,13 +209,6 @@ export default function ConferencePage() {
                   const cellIndex = cell.cellNumber - 1; // Преобразуем в 0-based индекс
                   const row = Math.floor(cellIndex / cols);
                   const col = cellIndex % cols;
-                  
-                  console.log('[ConferencePage] Processing cell (no structure):', {
-                    cellNumber: cell.cellNumber,
-                    cell: cell,
-                    hasParticipantId: !!cell.participantId,
-                    cellType: cell.cellType,
-                  });
                   
                   return {
                     id: `cell-${row}-${col}`,
@@ -297,28 +270,12 @@ export default function ConferencePage() {
         
         // Убеждаемся, что participantsData - это массив перед установкой
         const participantsArray = Array.isArray(participantsData) ? participantsData : [];
-        console.log('[ConferencePage] Setting participants:', participantsArray.length);
-        console.log('[ConferencePage] Participant IDs:', participantsArray.map(p => p.id));
         setParticipants(participantsArray);
         
         // Устанавливаем раскладку, если она загружена, иначе используем дефолтную
         if (Array.isArray(layoutData) && layoutData.length > 0) {
-          console.log('[ConferencePage] Setting layout with cells:', layoutData.length);
-          const cellsWithParticipants = layoutData.filter(c => c.participantId);
-          console.log('[ConferencePage] Layout cells with participants:', cellsWithParticipants.map(c => ({ id: c.id, participantId: c.participantId })));
-          console.log('[ConferencePage] Participant IDs in cells:', cellsWithParticipants.map(c => c.participantId));
-          
-          // Проверяем, есть ли соответствие между participantId в ячейках и id участников
-          const participantIdsInCells = new Set(cellsWithParticipants.map(c => c.participantId).filter((id): id is string => !!id));
-          const participantIds = new Set(participantsArray.map(p => p.id));
-          const matchingIds = Array.from(participantIdsInCells).filter(id => participantIds.has(id));
-          const missingIds = Array.from(participantIdsInCells).filter(id => !participantIds.has(id));
-          console.log('[ConferencePage] Matching participant IDs:', matchingIds);
-          console.log('[ConferencePage] Missing participant IDs (in cells but not in participants):', missingIds);
-          
           setLayout(layoutData);
         } else {
-          console.log('[ConferencePage] Using default layout');
           setLayout(createDefaultLayout());
         }
         
@@ -357,49 +314,30 @@ export default function ConferencePage() {
   // Подписываемся на события конференции через WebSocket
   useEffect(() => {
     if (!conferenceId) {
-      console.log('[ConferencePage] ⚠️ No conferenceId, skipping event subscription');
       return;
     }
-
-    console.log('[ConferencePage] 📝 Subscribing to conference events for:', conferenceId);
     
     // Подписываемся на события конференции
     let unsubscribe: (() => void) | null = null;
     unsubscribe = onConferenceEvent((event) => {
-      console.log('[ConferencePage] ✅ Conference event received:', event);
-      console.log('[ConferencePage] Event class:', event._class);
-      
       const eventClass = event._class || '';
       
       // Обрабатываем событие изменения медиа потока
       if (eventClass === 'MediaRoomStreamChangedEvent' || eventClass.includes('MediaRoomStreamChanged')) {
-        console.log('[ConferencePage] ✅ MediaRoomStreamChangedEvent handler triggered!');
-        console.log('[ConferencePage] MediaRoomStreamChangedEvent received:', event);
-        
         // Событие приходит как innerEvent из NumberedMessage
         // Используем само событие (оно уже является innerEvent из websocket.ts)
         const participantId = event.participantId || (event as any).id;
         const streamType = (event as any).streamType;
         const mediaState = (event as any).mediaState;
         
-        console.log('[ConferencePage] MediaRoomStreamChangedEvent details:', {
-          participantId,
-          streamType,
-          mediaState,
-          fullEvent: event,
-        });
-        
         if (!participantId) {
-          console.warn('[ConferencePage] ⚠️ MediaRoomStreamChangedEvent missing participantId:', event);
           return;
         }
         
         setParticipants((prevParticipants) => {
           const participantExists = prevParticipants.some(p => p.id === participantId);
-          console.log('[ConferencePage] Participant exists:', participantExists, 'Total participants:', prevParticipants.length);
           
           if (!participantExists) {
-            console.warn('[ConferencePage] ⚠️ Participant not found for MediaRoomStreamChangedEvent:', participantId);
             return prevParticipants;
           }
           
@@ -407,7 +345,7 @@ export default function ConferencePage() {
             if (p.id === participantId) {
               // Если streamType === "SPEAKER", обновляем mediaState
               if (streamType === 'SPEAKER') {
-                const updatedParticipant = {
+                return {
                   ...p,
                   mediaState: mediaState !== undefined && mediaState !== null 
                     ? mediaState as 'AUDIO' | 'VIDEO' | 'AUDIO_VIDEO' | 'NONE'
@@ -415,15 +353,6 @@ export default function ConferencePage() {
                   // Очищаем demonstrationType, если переключились на SPEAKER
                   demonstrationType: undefined,
                 };
-                
-                console.log('[ConferencePage] Updating participant mediaState (SPEAKER):', {
-                  participantId: p.id,
-                  oldMediaState: p.mediaState,
-                  newMediaState: updatedParticipant.mediaState,
-                  streamType,
-                });
-                
-                return updatedParticipant;
               } else {
                 // Проверяем, является ли streamType связанным с демонстрацией
                 const isDemonstration = streamType === 'SCREEN_SHARE' || streamType === 'SCREEN' || streamType?.includes('SHARE');
@@ -435,15 +364,6 @@ export default function ConferencePage() {
                     ? streamType 
                     : undefined;
                   
-                  console.log('[ConferencePage] Updating participant demonstration:', {
-                    participantId: p.id,
-                    oldDemonstrationType: p.demonstrationType,
-                    newDemonstrationType,
-                    streamType,
-                    mediaState,
-                    isStopping: mediaState === 'NONE',
-                  });
-                  
                   return { 
                     ...p, 
                     demonstrationType: newDemonstrationType,
@@ -451,12 +371,6 @@ export default function ConferencePage() {
                 } else {
                   // Если streamType не связан с демонстрацией и не является SPEAKER,
                   // возможно это событие об остановке - очищаем demonstrationType
-                  console.log('[ConferencePage] Unknown streamType, clearing demonstrationType:', {
-                    participantId: p.id,
-                    streamType,
-                    oldDemonstrationType: p.demonstrationType,
-                  });
-                  
                   return { 
                     ...p, 
                     demonstrationType: undefined,
@@ -467,54 +381,35 @@ export default function ConferencePage() {
             return p;
           });
           
-          console.log('[ConferencePage] ✅ Participant updated for MediaRoomStreamChangedEvent:', participantId, 'streamType:', streamType);
           return updated;
         });
       }
       
       // Обрабатываем событие присоединения участника к конференции
       if (eventClass === 'ConferenceSessionParticipantJoinEvent') {
-        console.log('[ConferencePage] ✅ ConferenceSessionParticipantJoinEvent handler triggered!');
-        console.log('[ConferencePage] Full event:', JSON.stringify(event, null, 2));
-        console.log('[ConferencePage] Event keys:', Object.keys(event));
-        
         // Получаем данные участника из поля participant события
         const participantData = (event as any).participant;
         
-        console.log('[ConferencePage] Participant data:', participantData);
-        console.log('[ConferencePage] Participant data keys:', participantData ? Object.keys(participantData) : 'null');
-        
         if (!participantData) {
-          console.warn('[ConferencePage] ⚠️ ConferenceSessionParticipantJoinEvent received but participant data not found');
-          console.warn('[ConferencePage] Event structure:', event);
           return;
         }
         
         const participantId = participantData.participantId;
         
-        console.log('[ConferencePage] Extracted participantId:', participantId);
-        
         if (!participantId) {
-          console.warn('[ConferencePage] ⚠️ ConferenceSessionParticipantJoinEvent received but participantId not found');
-          console.warn('[ConferencePage] Participant data:', participantData);
           return;
         }
         
         // Проверяем, нет ли уже такого участника в списке
         setParticipants((prevParticipants) => {
-          console.log('[ConferencePage] Current participants count:', prevParticipants.length);
-          console.log('[ConferencePage] Current participant IDs:', prevParticipants.map(p => p.id));
-          
           const exists = prevParticipants.some(p => p.id === participantId);
           if (exists) {
-            console.log('[ConferencePage] ⚠️ Participant already exists:', participantId);
             return prevParticipants;
           }
           
           // Формируем URL аватара если есть
           let avatarUrl: string | undefined = undefined;
           const avatarResourceId = participantData.avatarResourceId;
-          console.log('[ConferencePage] Avatar resource ID:', avatarResourceId);
           
           if (avatarResourceId) {
             avatarUrl = `/api/resources/${avatarResourceId}`;
@@ -526,12 +421,10 @@ export default function ConferencePage() {
           
           // Получаем состояние медиа из webMediaInfo.speakerStreamInfo.state
           const mediaState = participantData.webMediaInfo?.speakerStreamInfo?.state || participantData.mediaState || 'NONE';
-          console.log('[ConferencePage] Media state:', mediaState);
           
           // Проверяем состояние демонстрации из screenShareStreamInfo.state
           const screenShareState = participantData.webMediaInfo?.screenShareStreamInfo?.state;
           const demonstrationType = screenShareState && screenShareState !== 'NONE' ? 'SCREEN_SHARE' : undefined;
-          console.log('[ConferencePage] Screen share state for new participant:', screenShareState, 'demonstrationType:', demonstrationType);
           
           // Создаем объект участника в формате Participant
           const newParticipant: Participant = {
@@ -546,9 +439,6 @@ export default function ConferencePage() {
             mediaState: mediaState,
             demonstrationType: demonstrationType,
           };
-          
-          console.log('[ConferencePage] ✅ Adding new participant:', newParticipant);
-          console.log('[ConferencePage] New participants count:', prevParticipants.length + 1);
           
           return [...prevParticipants, newParticipant];
         });
@@ -572,7 +462,7 @@ export default function ConferencePage() {
                   try {
                     layoutStructure = await layoutAPI.getLayoutById(layoutObj.layoutId);
                   } catch (err) {
-                    console.warn('[ConferencePage] Could not load layout settings after participant join:', err);
+                    // Игнорируем ошибку загрузки настроек раскладки
                   }
                 }
                 
@@ -612,24 +502,19 @@ export default function ConferencePage() {
                   // Проверяем, есть ли новый участник в обновленной раскладке
                   const participantInLayout = updatedLayoutData.some((cell: LayoutCell) => cell.participantId === participantId);
                   if (participantInLayout) {
-                    console.log('[ConferencePage] ✅ Participant found in updated layout, updating layout');
                     setLayout(updatedLayoutData);
-                  } else {
-                    console.log('[ConferencePage] Participant not in layout cells');
                   }
                 }
               }
             }
           } catch (err) {
-            console.warn('[ConferencePage] Could not reload layout after participant join:', err);
+            // Игнорируем ошибку перезагрузки раскладки
           }
         })();
       }
       
       // Обрабатываем событие выхода участника из конференции
       if (eventClass === 'ConferenceSessionParticipantLeaveEvent') {
-        console.log('[ConferencePage] ConferenceSessionParticipantLeaveEvent received:', event);
-        
         // Получаем participantId из события
         const participantId = event.participantId || event.id || (event as any).participant?.id;
         
@@ -649,10 +534,6 @@ export default function ConferencePage() {
               return cell;
             })
           );
-          
-          console.log('[ConferencePage] ✅ Participant removed:', participantId);
-        } else {
-          console.warn('[ConferencePage] ⚠️ ConferenceSessionParticipantLeaveEvent received but participantId not found:', event);
         }
       }
     });

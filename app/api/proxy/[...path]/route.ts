@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
-import { getAuthHeaders, hasAuth } from '../../_helpers/auth';
+import { getAuthHeaders } from '../../_helpers/auth';
 
-const API_BASE_URL = process.env.API_URL || 'https://ivcs.profcontact.by/api/rest';
+const API_BASE_URL = process.env.API_URL;
 
 export async function GET(
   request: NextRequest,
@@ -54,17 +53,8 @@ async function handleRequest(
     const queryString = searchParams.toString();
     const fullUrl = queryString ? `${url}?${queryString}` : url;
 
-    // Логируем все заголовки для отладки
-    const allHeaders: Record<string, string> = {};
-    request.headers.forEach((value, key) => {
-      allHeaders[key] = value;
-    });
-    console.log('All incoming headers:', allHeaders);
-
     // Получаем заголовки авторизации
     const authHeaders = getAuthHeaders(request);
-    console.log('Proxy request headers to API:', authHeaders);
-    console.log('Request URL:', fullUrl);
 
     // Получаем body для POST, PUT, PATCH
     let body = undefined;
@@ -94,9 +84,6 @@ async function handleRequest(
     } else if (authHeaders['authorization']) {
       finalHeaders['Authorization'] = authHeaders['authorization'];
     }
-    
-    console.log('Final headers being sent to API:', finalHeaders);
-    console.log('Session header value:', finalHeaders['Session'] ? `${finalHeaders['Session'].substring(0, 20)}...` : 'missing');
 
     try {
       // Используем нативный fetch, который лучше сохраняет регистр заголовков
@@ -114,8 +101,6 @@ async function handleRequest(
         fetchHeaders.set('Authorization', finalHeaders['Authorization']);
       }
 
-      console.log('Fetch headers being sent:', Object.fromEntries(fetchHeaders.entries()));
-
       const fetchResponse = await fetch(fullUrl, {
         method: method,
         headers: fetchHeaders,
@@ -123,10 +108,6 @@ async function handleRequest(
       });
 
       const responseData = await fetchResponse.json().catch(() => ({}));
-
-      console.log('API Response Status:', fetchResponse.status);
-      console.log('API Response OK:', fetchResponse.ok);
-      console.log('API Response Data:', responseData);
 
       if (!fetchResponse.ok) {
         return NextResponse.json(
@@ -140,9 +121,7 @@ async function handleRequest(
 
       return NextResponse.json(responseData, { status: fetchResponse.status });
     } catch (fetchError: any) {
-      console.error('API Fetch Error:');
-      console.error('Error message:', fetchError.message);
-      console.error('Headers sent:', finalHeaders);
+      console.error('API Fetch Error:', fetchError.message);
       
       return NextResponse.json(
         {
@@ -154,8 +133,6 @@ async function handleRequest(
     }
   } catch (error: any) {
     console.error(`API proxy error (${method}):`, error);
-    console.error('Error response:', error.response?.data);
-    console.error('Error status:', error.response?.status);
     return NextResponse.json(
       {
         message: error.response?.data?.message || 'Ошибка выполнения запроса',

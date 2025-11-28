@@ -18,16 +18,12 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
       
       const sessionId = localStorage.getItem('session_id');
       if (sessionId) {
-        console.log('[WebSocketProvider] Found existing sessionId, starting Event Channel...');
         try {
           const { startEventChannel } = await import('@/lib/websocket');
           startEventChannel(sessionId);
-          console.log('[WebSocketProvider] ✅ Event Channel started');
         } catch (error) {
-          console.error('[WebSocketProvider] ❌ Failed to start Event Channel:', error);
+          console.error('[WebSocketProvider] Failed to start Event Channel:', error);
         }
-      } else {
-        console.log('[WebSocketProvider] No sessionId found, skipping WebSocket initialization');
       }
     };
 
