@@ -9,12 +9,13 @@ interface ConferenceMixedStreamProps {
   conferenceId: string;
   className?: string;
   mediaInfo?: any; // Опциональный MediaInfo, если передан, не загружаем заново
+  muted?: boolean; // Опциональный параметр для управления звуком
 }
 
 /**
  * Компонент для отображения смешанного потока конференции (mixed stream)
  */
-export default function ConferenceMixedStream({ conferenceId, className = '', mediaInfo: providedMediaInfo }: ConferenceMixedStreamProps) {
+export default function ConferenceMixedStream({ conferenceId, className = '', mediaInfo: providedMediaInfo, muted = false }: ConferenceMixedStreamProps) {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [streamProtocol, setStreamProtocol] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,18 +43,9 @@ export default function ConferenceMixedStream({ conferenceId, className = '', me
         // так и для подписки на mixed stream конференции
         const ownParticipantData = mediaInfo.ownParticipantData;
         
-        logger.debug('[ConferenceMixedStream]', 'OwnParticipantData:', {
-          hasData: !!ownParticipantData,
-          hasSpeakerStreamPublishUrl: !!ownParticipantData?.speakerStreamPublishUrl,
-          hasScreenShareStreamPublishUrl: !!ownParticipantData?.screenShareStreamPublishUrl,
-        });
-
         // Согласно документации: для подписки на mixed stream используем speakerStreamPublishUrl
         const subscribeUrl = ownParticipantData?.speakerStreamPublishUrl;
         const protocol = ownParticipantData?.protocol || ownParticipantData?.webMediaInfo?.speakerStreamInfo?.protocol;
-
-        // Выводим всю структуру ownParticipantData для отладки
-        logger.debug('[ConferenceMixedStream]', 'Full ownParticipantData:', ownParticipantData);
 
         if (!subscribeUrl) {
           logger.warn('[ConferenceMixedStream]', 'speakerStreamPublishUrl not found', {
@@ -114,7 +106,7 @@ export default function ConferenceMixedStream({ conferenceId, className = '', me
     <VideoStream
       streamUrl={streamUrl}
       protocol={streamProtocol || undefined}
-      muted={false}
+      muted={muted}
       className={className}
     />
   );

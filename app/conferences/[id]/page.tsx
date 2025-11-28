@@ -2,8 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { DndProvider } from 'react-dnd';
+import dynamic from 'next/dynamic';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+
+// Динамический импорт DndProvider для избежания проблем с SSR и vendor chunks
+const DndProvider = dynamic(
+  () => import('react-dnd').then((mod) => mod.DndProvider),
+  { ssr: false }
+);
 import { conferencesAPI, layoutAPI, Conference, Participant, LayoutCell, Layout, CellType } from '@/lib/api';
 import { isAuthenticated } from '@/lib/auth';
 import { getCurrentBusId } from '@/lib/websocket';
@@ -283,7 +289,7 @@ export default function ConferencePage() {
 
         setLayout(newLayoutData.length > 0 ? newLayoutData : createDefaultLayout());
       } catch (err: any) {
-        console.error('Error loading layout structure:', err);
+        logger.error('[ConferencePage]', 'Error loading layout structure:', err);
         // В случае ошибки создаем дефолтную раскладку
         setLayout(createDefaultLayout());
       }
@@ -471,7 +477,20 @@ export default function ConferencePage() {
             )}
 
             {/* Область раскладки */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative overflow-hidden">
+              {/* Фоновое видео стрим */}
+              {mediaInfo && (
+                <div className="absolute inset-0 z-0">
+                  <ConferenceMixedStream 
+                    conferenceId={conferenceId}
+                    mediaInfo={mediaInfo}
+                    className="w-full h-full"
+                    muted={true}
+                  />
+                </div>
+              )}
+              {/* Раскладка поверх видео */}
+              <div className="relative z-10 w-full h-full">
                 <LayoutGrid
                   cells={layout}
                   participants={participants}
@@ -483,6 +502,7 @@ export default function ConferencePage() {
                   gridRows={3}
                   showNames={showNames}
                 />
+              </div>
             </div>
           </div>
 

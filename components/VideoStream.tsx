@@ -126,7 +126,6 @@ export default function VideoStream({
         const candidates: RTCIceCandidateInit[] = [];
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            logger.debug('[VideoStream]', 'New ICE candidate generated');
             candidates.push({
               candidate: event.candidate.candidate,
               sdpMLineIndex: event.candidate.sdpMLineIndex,
@@ -213,12 +212,6 @@ export default function VideoStream({
         };
 
         logger.info('[VideoStream]', `Sending HTTP POST via proxy to: ${httpSignallingUrl.substring(0, 100)}...`);
-        logger.debug('[VideoStream]', 'Signalling message:', {
-          hasSdp: !!signallingMessage.sdp,
-          sdpLength: signallingMessage.sdp?.length,
-          content: signallingMessage.content,
-          candidatesCount: signallingMessage.candidates.length,
-        });
 
         const response = await fetch(proxyUrl, {
           method: 'POST',
@@ -261,7 +254,7 @@ export default function VideoStream({
             if (line.trim()) {
               try {
                 const data = JSON.parse(line);
-                logger.debug('[VideoStream]', 'Received from server:', data);
+                // Received from server
 
                 // Обрабатываем SDP answer
                 if (data.sdp && typeof data.sdp === 'string') {
@@ -288,10 +281,10 @@ export default function VideoStream({
                 // Обрабатываем ICE кандидаты (приходят по одному)
                 // Формат: { candidate: { sdpMLineIndex, sdpMid, candidate } }
                 if (data.candidate) {
-                  logger.debug('[VideoStream]', 'Received ICE candidate from server');
+                  // Received ICE candidate from server
                   try {
                     await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    logger.debug('[VideoStream]', 'ICE candidate added successfully');
+                    // ICE candidate added successfully
                   } catch (candErr: any) {
                     logger.warn('[VideoStream]', 'Error adding ICE candidate:', candErr);
                     // Не прерываем процесс, продолжаем обработку
@@ -499,7 +492,6 @@ export default function VideoStream({
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            logger.debug('[VideoStream]', 'New ICE candidate generated');
             candidates.push({
               candidate: event.candidate.candidate,
               sdpMLineIndex: event.candidate.sdpMLineIndex,
@@ -555,12 +547,6 @@ export default function VideoStream({
             };
             
             logger.info('[VideoStream]', 'Sending offer to server');
-            logger.debug('[VideoStream]', 'Offer message format:', {
-              hasSdp: !!offerMessage.sdp,
-              sdpLength: offerMessage.sdp?.length,
-              content: offerMessage.content,
-              candidatesCount: offerMessage.candidates.length,
-            });
             
             ws.send(JSON.stringify(offerMessage));
             offerSent = true;
@@ -576,13 +562,10 @@ export default function VideoStream({
         ws.onmessage = async (event) => {
           try {
             logger.info('[VideoStream]', '📨 Received message from server');
-            logger.debug('[VideoStream]', 'Raw message:', event.data);
             
             let data: any;
             try {
               data = JSON.parse(event.data);
-              logger.debug('[VideoStream]', 'Parsed JSON:', data);
-              logger.debug('[VideoStream]', 'Message keys:', Object.keys(data));
             } catch (parseErr) {
               logger.warn('[VideoStream]', 'Failed to parse message as JSON:', event.data);
               return;
@@ -600,8 +583,6 @@ export default function VideoStream({
             
             if (sdpAnswer) {
               logger.success('[VideoStream]', 'Received SDP answer from server');
-              logger.debug('[VideoStream]', 'SDP answer length:', sdpAnswer.length);
-              logger.debug('[VideoStream]', 'SDP answer preview:', sdpAnswer.substring(0, 200));
               try {
                 await pc.setRemoteDescription(new RTCSessionDescription({
                   type: 'answer',
@@ -659,27 +640,19 @@ export default function VideoStream({
               for (const cand of data.candidates) {
                 try {
                   await pc.addIceCandidate(new RTCIceCandidate(cand));
-                  logger.debug('[VideoStream]', 'Added ICE candidate');
                 } catch (candErr: any) {
                   logger.warn('[VideoStream]', 'Error adding ICE candidate:', candErr);
                 }
               }
             } else if (data.candidate) {
-              logger.debug('[VideoStream]', 'Received single ICE candidate');
               try {
                 await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                logger.debug('[VideoStream]', 'Added single ICE candidate');
               } catch (candErr: any) {
                 logger.warn('[VideoStream]', 'Error adding ICE candidate:', candErr);
               }
             }
             
-            // Логируем неизвестные поля
-            const knownFields = ['sdp', 'sessionDescription', 'answer', 'candidates', 'candidate'];
-            const unknownFields = Object.keys(data).filter(k => !knownFields.includes(k));
-            if (unknownFields.length > 0) {
-              logger.debug('[VideoStream]', 'Message contains unknown fields:', unknownFields);
-            }
+            // Игнорируем неизвестные поля
           } catch (err: any) {
             logger.error('[VideoStream]', 'Error processing message:', err);
             if (mounted && !error) {
@@ -745,43 +718,22 @@ export default function VideoStream({
         muted={muted}
         className="w-full h-full object-cover"
         onLoadedMetadata={async () => {
-          logger.success('[VideoStream]', 'Video metadata loaded in video element');
-          // Логируем состояние видео элемента
+          // Явно вызываем play() после загрузки метаданных
           if (videoRef.current) {
-            logger.info('[VideoStream]', 'Video element state:', {
-              paused: videoRef.current.paused,
-              readyState: videoRef.current.readyState,
-              networkState: videoRef.current.networkState,
-              autoplay: videoRef.current.autoplay,
-              muted: videoRef.current.muted,
-            });
-            // Явно вызываем play() после загрузки метаданных
             try {
               await videoRef.current.play();
-              logger.success('[VideoStream]', 'Video play() called successfully');
             } catch (err: any) {
-              logger.warn('[VideoStream]', 'Video play() failed (may be blocked by browser):', err.message);
               // Если автовоспроизведение заблокировано, это нормально - пользователь может запустить вручную
             }
           }
         }}
         onCanPlay={async () => {
-          logger.success('[VideoStream]', 'Video can play');
           // Также пробуем запустить воспроизведение при canPlay
-          if (videoRef.current) {
-            logger.info('[VideoStream]', 'Video element state on canPlay:', {
-              paused: videoRef.current.paused,
-              readyState: videoRef.current.readyState,
-            });
-            if (videoRef.current.paused) {
-              try {
-                await videoRef.current.play();
-                logger.success('[VideoStream]', 'Video play() called on canPlay');
-              } catch (err: any) {
-                logger.warn('[VideoStream]', 'Video play() failed on canPlay:', err.message);
-              }
-            } else {
-              logger.info('[VideoStream]', 'Video is already playing or not paused');
+          if (videoRef.current && videoRef.current.paused) {
+            try {
+              await videoRef.current.play();
+            } catch (err: any) {
+              // Игнорируем ошибки автовоспроизведения
             }
           }
         }}

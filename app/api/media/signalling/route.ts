@@ -41,11 +41,6 @@ export async function POST(request: NextRequest) {
     const baseUrl = API_URL.replace('/api/rest', '');
     const backendUrl = `${baseUrl}${fullPath}`;
 
-    console.log('backendUrl', backendUrl);
-
-    console.log('[Media Signalling] Proxying POST to:', backendUrl);
-    console.log('[Media Signalling] Request body:', JSON.stringify(body).substring(0, 200) + '...');
-
     // Отправляем POST запрос на бэкенд
     const response = await fetch(backendUrl, {
       method: 'POST',
@@ -55,8 +50,6 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify(body),
     });
-
-    console.log('[Media Signalling] Response status:', response.status);
 
     // Возвращаем streaming response для чтения SDP answer и candidates
     // Важно: не буферизуем весь ответ, передаем его потоком

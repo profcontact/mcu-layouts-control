@@ -20,9 +20,13 @@ class Logger {
   }
 
   private isEnabled(): boolean {
-    // Всегда включено для отладки
-    // TODO: вернуть проверку process.env.NODE_ENV после отладки
-    return true;
+    // В production отключаем DEBUG логи
+    if (typeof window !== 'undefined') {
+      // Клиентская сторона
+      return process.env.NODE_ENV !== 'production' || this.level >= LogLevel.INFO;
+    }
+    // Серверная сторона
+    return process.env.NODE_ENV !== 'production' || this.level >= LogLevel.INFO;
   }
 
   private log(level: LogLevel, prefix: string, emoji: string, ...args: any[]): void {
@@ -106,8 +110,10 @@ class Logger {
 }
 
 // Экспортируем синглтон
-// Всегда используем DEBUG уровень для отладки
-export const logger = new Logger(LogLevel.DEBUG);
+// В production используем INFO уровень, в development - DEBUG
+export const logger = new Logger(
+  process.env.NODE_ENV === 'production' ? LogLevel.INFO : LogLevel.DEBUG
+);
 
 // Экспортируем удобные функции для импорта
 export const {

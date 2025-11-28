@@ -31,7 +31,7 @@ export default function LayoutGrid({
     if (!participantId) return undefined;
     const found = participants.find((p) => p.id === participantId);
     if (!found) {
-      console.warn('[LayoutGrid] Participant not found for ID:', participantId, 'Available IDs:', participants.map(p => p.id));
+      // Participant not found - это нормально, если участник еще не загружен
     }
     return found;
   };
@@ -64,7 +64,7 @@ export default function LayoutGrid({
   };
 
   return (
-    <div className="w-full h-full relative bg-black">
+    <div className="w-full h-full relative">
       {cells.map((cell, index) => (
         <LayoutCell
           key={cell.id}
@@ -174,7 +174,7 @@ function LayoutCell({
           showNames={showNames}
         />
       ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-[#0f1322] text-gray-500 text-xs relative">
+        <div className="w-full h-full flex flex-col items-center justify-center bg-[#0f1322]/80 backdrop-blur-sm text-gray-500 text-xs relative">
           {isOver && canDrop ? (
             <div className="text-blue-400">Отпустите здесь</div>
           ) : (
@@ -263,7 +263,7 @@ function ParticipantInCell({
   return (
     <div
       ref={drag as unknown as React.Ref<HTMLDivElement>}
-      className={`w-full h-full bg-[#1a1f3a] flex flex-col items-center justify-center cursor-move relative ${
+      className={`w-full h-full bg-[#1a1f3a]/20 backdrop-blur-sm flex flex-col items-center justify-center cursor-move relative ${
         isDragging ? 'opacity-50' : ''
       }`}
     >

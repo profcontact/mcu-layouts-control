@@ -21,10 +21,7 @@ export default function LoginPage() {
       
       // Проверяем, что токен сохранился перед редиректом
       const token = localStorage.getItem('auth_token');
-      const sessionId = localStorage.getItem('session_id');
       
-      console.log('After login - token:', token ? 'present' : 'missing');
-      console.log('After login - sessionId:', sessionId ? 'present' : 'missing');
       
       if (token) {
         // Даем время для запуска WebSocket перед редиректом

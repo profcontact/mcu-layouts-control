@@ -4,15 +4,10 @@ import { setWebSocketConnection, removeWebSocketConnection } from '../_ws-storag
 
 const WS_HOST = process.env.WS_HOST;
 
-console.log('WS_HOST', WS_HOST); console.log('process.env.NODE_ENV', process.env.NODE_ENV);
 // Проверка переменных окружения при загрузке модуля (только в dev режиме)
 if (process.env.NODE_ENV === 'development' && !WS_HOST) {
   console.error('[WebSocket Event Channel] ⚠️  WARNING: WS_HOST environment variable is not set!');
   console.error('[WebSocket Event Channel] Make sure .env.local file exists in the project root with WS_HOST variable');
-  console.error('[WebSocket Event Channel] File location should be: .env.local');
-  console.error('[WebSocket Event Channel] Required format: WS_HOST=your-websocket-host');
-} else if (process.env.NODE_ENV === 'development') {
-  console.log('[WebSocket Event Channel] ✅ WS_HOST loaded:', WS_HOST);
 }
 /**
  * API Route для проксирования WebSocket Event Channel через Server-Sent Events (SSE)
@@ -63,25 +58,15 @@ export async function GET(request: NextRequest) {
         const busId = crypto.randomUUID();
         const wsUrl = `wss://${WS_HOST}/websocket/eventbus/${busId}/json/source/VIDEOCONFERENCE?Session=${encodeURIComponent(sessionId)}`;
         
-        console.log('[Server WebSocket] 🔌 Starting WebSocket connection...');
-        console.log('[Server WebSocket] 📍 WS_HOST:', WS_HOST);
-        console.log('[Server WebSocket] 🔗 WebSocket URL:', wsUrl.replace(sessionId, sessionId.substring(0, 20) + '...'));
-        console.log('[Server WebSocket] 🆔 BusId:', busId);
-        console.log('[Server WebSocket] 🔑 SessionId:', sessionId.substring(0, 20) + '...');
-        
         // Используем динамический импорт для ws (если установлен) или встроенный WebSocket
         let WebSocketClass: any;
         
         try {
           // Пробуем использовать библиотеку 'ws' для Node.js
-          console.log('[Server WebSocket] 📦 Trying to import "ws" module...');
           const wsModule = await import('ws');
           WebSocketClass = wsModule.default;
-          console.log('[Server WebSocket] ✅ Using "ws" library for WebSocket');
         } catch (err) {
           // Если 'ws' не установлена, используем встроенный WebSocket (Node.js 18+)
-          console.log('[Server WebSocket] ⚠️  "ws" module not found, using built-in WebSocket');
-          console.log('[Server WebSocket] 📦 Error importing ws:', err);
           WebSocketClass = globalThis.WebSocket;
         }
 
@@ -99,15 +84,8 @@ export async function GET(request: NextRequest) {
           },
         };
         
-        console.log('[Server WebSocket] 🔧 WebSocket options:', {
-          hasHeaders: !!wsOptions.headers,
-          sessionHeaderLength: wsOptions.headers.Session?.length,
-        });
-        
         // Если используется библиотека 'ws', она поддерживает заголовки напрямую
-        console.log('[Server WebSocket] 🚀 Creating WebSocket connection...');
         ws = new WebSocketClass(wsUrl, wsOptions);
-        console.log('[Server WebSocket] 📡 WebSocket instance created, readyState:', ws.readyState);
         
         // Устанавливаем таймаут для подключения (10 секунд)
         connectionTimeout = setTimeout(() => {
@@ -145,8 +123,6 @@ export async function GET(request: NextRequest) {
         sendSSE({ type: 'connecting', message: 'Connecting to Event Channel...' });
 
         ws.on('open', () => {
-          console.log('[Server WebSocket] ✅ WebSocket connection opened successfully');
-          console.log('[Server WebSocket] 📊 ReadyState:', ws.readyState);
           // Очищаем таймаут при успешном подключении
           if (connectionTimeout) {
             clearTimeout(connectionTimeout);
@@ -156,11 +132,7 @@ export async function GET(request: NextRequest) {
           // Сохраняем WebSocket соединение для возможности отправки сообщений подписки
           // Проверяем, что соединение действительно открыто
           if (ws.readyState === 1) { // WebSocket.OPEN
-            console.log('[Server WebSocket] 💾 Saving WebSocket connection to storage...');
-            console.log('[Server WebSocket] 🔑 SessionId:', sessionId.substring(0, 20) + '...');
-            console.log('[Server WebSocket] 🆔 BusId:', busId);
             setWebSocketConnection(sessionId, { ws, busId });
-            console.log('[Server WebSocket] ✅ WebSocket connection saved to storage');
           } else {
             console.error('[Server WebSocket] ❌ Cannot save WebSocket connection: readyState is not OPEN:', ws.readyState);
           }
@@ -213,8 +185,7 @@ export async function GET(request: NextRequest) {
                 eventInfo = ` [BULK: ${jsonData.events?.length || 0} событий]`;
               }
               
-              // Логируем событие WebSocket
-              console.log(`[Server WebSocket] 📨${eventInfo} Получено сообщение: ${messageClass}`);
+              // Событие WebSocket получено
               
               // Отправляем сообщение клиенту через SSE
               sendSSE({ 
@@ -269,10 +240,7 @@ export async function GET(request: NextRequest) {
         });
 
         ws.on('close', (code: number, reason: Buffer) => {
-          console.log('[Server WebSocket] 🔌 WebSocket connection closed');
-          console.log('[Server WebSocket] 📊 Close code:', code);
-          console.log('[Server WebSocket] 📝 Close reason:', reason.toString());
-          console.log('[Server WebSocket] 🔗 WebSocket URL was:', wsUrl.replace(sessionId, sessionId.substring(0, 20) + '...'));
+          // WebSocket соединение закрыто
           
           // Удаляем WebSocket соединение из хранилища
           removeWebSocketConnection(sessionId);
