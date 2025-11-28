@@ -17,8 +17,9 @@ if (process.env.NODE_ENV === 'development' && !API_BASE_URL) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     if (!API_BASE_URL) {
       console.error('[Join API] API_URL environment variable is not set');
@@ -35,12 +36,11 @@ export async function POST(
       );
     }
 
-    const { id } = await params;
     const authHeaders = getAuthHeaders(request);
     const body = await request.json();
 
     const response = await axios.post(
-      `${API_BASE_URL}/conference-sessions/${id}/join`,
+      `${API_BASE_URL}/conference-sessions/${params.id}/join`,
       body,
       {
         headers: authHeaders,

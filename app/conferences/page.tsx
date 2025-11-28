@@ -6,8 +6,6 @@ import { conferencesAPI, authAPI, Conference } from '@/lib/api';
 import { isAuthenticated } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
-export const dynamic = 'force-dynamic';
-
 export default function ConferencesPage() {
   const router = useRouter();
   const [conferences, setConferences] = useState<Conference[]>([]);
