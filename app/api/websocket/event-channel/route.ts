@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { getAuthHeaders } from '../../_helpers/auth';
 import { setWebSocketConnection, removeWebSocketConnection } from '../_ws-storage';
 
+export const dynamic = 'force-dynamic';
+
 const WS_HOST = process.env.WS_HOST;
 
 // Проверка переменных окружения при загрузке модуля (только в dev режиме)
@@ -37,9 +39,25 @@ export async function GET(request: NextRequest) {
   let ws: any = null;
   let pingInterval: NodeJS.Timeout | null = null;
   let connectionTimeout: NodeJS.Timeout | null = null;
+  let isControllerClosed = false;
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Функция для безопасного закрытия контроллера
+      const closeController = () => {
+        if (!isControllerClosed && controller.desiredSize !== null) {
+          try {
+            controller.close();
+            isControllerClosed = true;
+          } catch (error: any) {
+            // Игнорируем ошибки, если контроллер уже закрыт
+            if (error.code !== 'ERR_INVALID_STATE') {
+              console.error('[Server WebSocket] ❌ Error closing controller:', error);
+            }
+          }
+        }
+      };
+
       try {
         if (!WS_HOST) {
           console.error('[Server WebSocket] WS_HOST environment variable is not set');
@@ -50,7 +68,7 @@ export async function GET(request: NextRequest) {
             })}\n\n`
           );
           controller.enqueue(errorMessage);
-          controller.close();
+          closeController();
           return;
         }
 
@@ -96,7 +114,7 @@ export async function GET(request: NextRequest) {
               type: 'error', 
               error: 'WebSocket connection timeout. Please check your network connection and try again.' 
             });
-            controller.close();
+            closeController();
           }
         }, 10000);
         
@@ -104,8 +122,7 @@ export async function GET(request: NextRequest) {
         const sendSSE = (data: any) => {
           try {
             // Проверяем, что контроллер не закрыт
-            if (controller.desiredSize === null) {
-              console.warn('[Server WebSocket] ⚠️  Cannot send SSE message: controller is closed');
+            if (isControllerClosed || controller.desiredSize === null) {
               return;
             }
             const message = `data: ${JSON.stringify(data)}\n\n`;
@@ -113,7 +130,7 @@ export async function GET(request: NextRequest) {
           } catch (error: any) {
             // Игнорируем ошибки отправки, если контроллер закрыт
             if (error.message?.includes('closed') || error.code === 'ERR_INVALID_STATE') {
-              console.warn('[Server WebSocket] ⚠️  Cannot send SSE message: controller is closed');
+              isControllerClosed = true;
             } else {
               console.error('[Server WebSocket] ❌ Error sending SSE message:', error);
             }
@@ -256,7 +273,7 @@ export async function GET(request: NextRequest) {
             pingInterval = null;
           }
           
-          controller.close();
+          closeController();
         });
 
       } catch (error) {
@@ -280,7 +297,7 @@ export async function GET(request: NextRequest) {
         
         // Не закрываем контроллер сразу, даем клиенту получить сообщение об ошибке
         setTimeout(() => {
-          controller.close();
+          closeController();
         }, 100);
       }
     },

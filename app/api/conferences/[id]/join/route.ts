@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getAuthHeaders, hasAuth } from '../../../_helpers/auth';
 
+export const dynamic = 'force-dynamic';
+
 const API_BASE_URL = process.env.API_URL;
 
 // Проверка переменных окружения при загрузке модуля (только в dev режиме)

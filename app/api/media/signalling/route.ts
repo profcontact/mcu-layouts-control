@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthHeaders, hasAuth } from '../../_helpers/auth';
 
+export const dynamic = 'force-dynamic';
+
 const API_URL = process.env.API_URL || '';
 
 /**
