@@ -22,6 +22,8 @@ import LayoutGrid from '@/components/LayoutGrid';
 import CompactVideoStream from '@/components/CompactVideoStream';
 import ConferenceMixedStream from '@/components/ConferenceMixedStream';
 
+export const dynamic = 'force-dynamic';
+
 export default function ConferencePage() {
   const router = useRouter();
   const params = useParams();

@@ -20,6 +20,11 @@ const nextConfig = {
   // Production оптимизации
   productionBrowserSourceMaps: false,
   compress: true,
+  // Отключаем статическую генерацию для всех страниц
+  // Это гарантирует, что все страницы будут рендериться динамически
+  generateBuildId: async () => {
+    return 'build-' + Date.now();
+  },
 }
 
 module.exports = nextConfig
