@@ -5,6 +5,8 @@ import WebSocketProvider from '@/components/WebSocketProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'MCU Layout - Управление видеоконференциями',
   description: 'Система управления раскладкой участников видеоконференций',
