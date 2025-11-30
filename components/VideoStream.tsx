@@ -215,15 +215,14 @@ export default function VideoStream({
             const streamId = urlMatch[1];
             const queryString = urlMatch[2] || '';
             
-            // Парсим query параметры и убираем signature (он нужен только для WebSocket)
+            // Парсим query параметры
+            // ВАЖНО: для HTTP POST signature также может быть нужен, поэтому сохраняем все параметры
             const urlObj = new URL(`http://dummy${queryString}`);
             const params = new URLSearchParams();
             
-            // Сохраняем только нужные параметры (server и другие, кроме signature)
+            // Сохраняем все параметры, включая signature (сервер может требовать его даже для HTTP POST)
             urlObj.searchParams.forEach((value, key) => {
-              if (key !== 'signature') {
-                params.set(key, value);
-              }
+              params.set(key, value);
             });
             
             const queryParams = params.toString() ? `?${params.toString()}` : '';
@@ -238,7 +237,22 @@ export default function VideoStream({
             logger.info('[VideoStream]', `Fallback conversion: ${httpSignallingUrl.substring(0, 150)}...`);
           }
         } else if (httpSignallingUrl.includes('/api/rs/media/proxy/media/')) {
+          // URL уже в HTTP формате - проверяем, что он содержит все необходимые параметры
+          // Если signature отсутствует в URL, но был в оригинальном streamUrl, нужно его добавить
           logger.info('[VideoStream]', 'URL already in HTTP format');
+          
+          // Проверяем, есть ли signature в URL
+          const urlObj = new URL(`http://dummy${httpSignallingUrl}`);
+          if (!urlObj.searchParams.has('signature') && streamUrl.includes('signature=')) {
+            // Если signature был в оригинальном URL, но отсутствует в HTTP формате, добавляем его
+            const originalUrlObj = new URL(`http://dummy${streamUrl}`);
+            const signature = originalUrlObj.searchParams.get('signature');
+            if (signature) {
+              urlObj.searchParams.set('signature', signature);
+              httpSignallingUrl = urlObj.pathname + (urlObj.search ? urlObj.search : '');
+              logger.info('[VideoStream]', 'Added signature to HTTP URL');
+            }
+          }
         }
 
         // Используем наш API proxy для отправки signalling запроса на бэкенд

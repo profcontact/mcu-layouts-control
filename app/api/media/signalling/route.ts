@@ -42,7 +42,13 @@ export async function POST(request: NextRequest) {
     // Формируем URL к бэкенду
     // Нужно заменить /api/rest на путь signalling
     const baseUrl = API_URL.replace('/api/rest', '');
+    // fullPath уже содержит query параметры (включая signature), поэтому просто конкатенируем
     const backendUrl = `${baseUrl}${fullPath}`;
+    
+    // Логируем для отладки (только в dev или если есть ошибка)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Media Signalling] Backend URL:', backendUrl.substring(0, 200));
+    }
 
     // Отправляем POST запрос на бэкенд
     const response = await fetch(backendUrl, {
