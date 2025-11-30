@@ -257,7 +257,18 @@ export default function VideoStream({
 
         // Используем наш API proxy для отправки signalling запроса на бэкенд
         // Формат согласно OpenAPI: { sdp, content, candidates }
+        // ВАЖНО: encodeURIComponent правильно кодирует URL, включая query параметры
+        // Next.js автоматически декодирует его в proxy, поэтому signature должен сохраниться
         const proxyUrl = `/api/media/signalling?path=${encodeURIComponent(httpSignallingUrl)}`;
+
+        // Проверяем, что signature присутствует в URL перед отправкой
+        const urlCheck = new URL(`http://dummy${httpSignallingUrl}`);
+        const hasSignature = urlCheck.searchParams.has('signature');
+        if (!hasSignature) {
+          logger.warn('[VideoStream]', '⚠️ Signature missing in URL before sending!');
+        } else {
+          logger.info('[VideoStream]', `Signature present in URL: ${urlCheck.searchParams.get('signature')?.substring(0, 20)}...`);
+        }
 
         const signallingMessage = {
           sdp: pc.localDescription?.sdp,

@@ -28,12 +28,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Получаем полный путь из query параметра
-    const fullPath = request.nextUrl.searchParams.get('path');
-    if (!fullPath) {
+    // ВАЖНО: searchParams.get() автоматически декодирует URL, что может исказить signature
+    // Поэтому получаем raw значение из URL строки
+    const pathParam = request.nextUrl.searchParams.get('path');
+    if (!pathParam) {
       return NextResponse.json(
         { message: 'Path parameter is required' },
         { status: 400 }
       );
+    }
+
+    // Проверяем наличие signature в декодированном пути
+    const hasSignature = pathParam.includes('signature=');
+    
+    // Логируем для отладки (в production тоже, чтобы видеть проблему)
+    console.log('[Media Signalling] Path param received:', pathParam.substring(0, 200));
+    console.log('[Media Signalling] Has signature in path:', hasSignature);
+    if (hasSignature) {
+      const signatureMatch = pathParam.match(/signature=([^&]+)/);
+      if (signatureMatch) {
+        console.log('[Media Signalling] Signature found:', signatureMatch[1].substring(0, 50) + '...');
+      }
     }
 
     const authHeaders = getAuthHeaders(request);
@@ -42,13 +57,10 @@ export async function POST(request: NextRequest) {
     // Формируем URL к бэкенду
     // Нужно заменить /api/rest на путь signalling
     const baseUrl = API_URL.replace('/api/rest', '');
-    // fullPath уже содержит query параметры (включая signature), поэтому просто конкатенируем
-    const backendUrl = `${baseUrl}${fullPath}`;
+    // pathParam уже декодирован Next.js, но должен содержать все параметры включая signature
+    const backendUrl = `${baseUrl}${pathParam}`;
     
-    // Логируем для отладки (только в dev или если есть ошибка)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Media Signalling] Backend URL:', backendUrl.substring(0, 200));
-    }
+    console.log('[Media Signalling] Final backend URL:', backendUrl.substring(0, 250));
 
     // Отправляем POST запрос на бэкенд
     const response = await fetch(backendUrl, {
@@ -59,6 +71,27 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify(body),
     });
+
+    // Если ошибка, логируем детали для диагностики
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unable to read error response');
+      console.error('[Media Signalling] Backend error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: backendUrl.substring(0, 250),
+        error: errorText.substring(0, 500),
+        hasSignature: backendUrl.includes('signature='),
+      });
+      
+      // Возвращаем ошибку с деталями
+      return NextResponse.json(
+        { 
+          message: errorText || `Backend error: ${response.status} ${response.statusText}`,
+          url: backendUrl.substring(0, 200),
+        },
+        { status: response.status }
+      );
+    }
 
     // Возвращаем streaming response для чтения SDP answer и candidates
     // Важно: не буферизуем весь ответ, передаем его потоком
