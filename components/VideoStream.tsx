@@ -123,9 +123,15 @@ export default function VideoStream({
         };
 
         // Собираем ICE кандидаты
+        // Фильтруем локальные candidates с .local доменом, так как сервер не может их обработать
         const candidates: RTCIceCandidateInit[] = [];
         pc.onicecandidate = (event) => {
           if (event.candidate) {
+            // Пропускаем candidates с .local доменом (mDNS), так как сервер не может их обработать
+            if (event.candidate.candidate.includes('.local')) {
+              logger.info('[VideoStream]', 'Skipping local candidate with .local domain');
+              return;
+            }
             candidates.push({
               candidate: event.candidate.candidate,
               sdpMLineIndex: event.candidate.sdpMLineIndex,
@@ -492,6 +498,11 @@ export default function VideoStream({
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
+            // Пропускаем candidates с .local доменом (mDNS), так как сервер не может их обработать
+            if (event.candidate.candidate.includes('.local')) {
+              logger.info('[VideoStream]', 'Skipping local candidate with .local domain');
+              return;
+            }
             candidates.push({
               candidate: event.candidate.candidate,
               sdpMLineIndex: event.candidate.sdpMLineIndex,
