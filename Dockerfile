@@ -9,8 +9,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 # Обновляем npm до последней версии для лучшей совместимости
 RUN npm install -g npm@latest
-# Используем npm ci для чистой установки (быстрее и надежнее для production)
-RUN npm ci
+# Используем npm install вместо npm ci из-за конфликтов версий в lock файле
+# npm install более гибкий и может разрешить конфликты автоматически
+RUN npm install --legacy-peer-deps
 
 # Stage 2: Builder
 FROM node:23.10.0-alpine AS builder
