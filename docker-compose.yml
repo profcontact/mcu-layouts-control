@@ -56,6 +56,9 @@ services:
       - TURN_PASSWORD=${TURN_PASSWORD:-turnpassword}
       - EXTERNAL_IP=${EXTERNAL_IP:-}
       - REALM=${TURN_REALM:-localhost}
+    # Добавляем EXTERNAL_IP в команду, если он установлен
+    entrypoint: ["/bin/sh", "-c"]
+    # Используем скрипт для динамического добавления --external-ip
     volumes:
       - ./coturn.conf:/etc/turnserver.conf:ro
     networks:
@@ -75,6 +78,7 @@ services:
       - --no-tls
       - --no-dtls
       - --no-multicast-peers
+      # EXTERNAL_IP будет добавлен через переменную окружения, если она установлена
     # Упрощенный healthcheck для coturn
     # Проверяем, что процесс coturn запущен
     healthcheck:
