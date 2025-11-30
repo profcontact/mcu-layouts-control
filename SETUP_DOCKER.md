@@ -82,11 +82,34 @@ WS_HOST=wss://your-ws-domain.com
 # WebSocket host для клиента (только домен)
 NEXT_PUBLIC_WS_HOST=your-ws-domain.com
 
+# TURN сервер настройки (опционально, но рекомендуется)
+# Если TURN сервер запущен в Docker, используйте имя сервиса: turn:coturn:3478
+# Если TURN сервер на отдельном хосте, используйте: turn:your-turn-server.com:3478
+NEXT_PUBLIC_TURN_SERVER=turn:coturn:3478
+NEXT_PUBLIC_TURN_USERNAME=turnuser
+NEXT_PUBLIC_TURN_PASSWORD=turnpassword
+
+# WebRTC ICE Transport Policy
+# "all" - все кандидаты с фильтрацией (по умолчанию)
+# "relay" - только relay кандидаты через TURN (рекомендуется, если TURN настроен)
+NEXT_PUBLIC_WEBRTC_ICE_POLICY=relay
+
+# TURN сервер настройки для контейнера coturn
+TURN_USERNAME=turnuser
+TURN_PASSWORD=turnpassword
+TURN_REALM=your-domain.com
+# Внешний IP адрес сервера (обязательно для работы через NAT)
+# Если сервер за NAT, используйте формат: INTERNAL_IP/EXTERNAL_IP
+EXTERNAL_IP=YOUR_SERVER_IP
+
 # Node environment
 NODE_ENV=production
 ```
 
-**Важно:** Замените `your-api-domain.com` и `your-ws-domain.com` на ваши реальные домены.
+**Важно:** 
+- Замените `your-api-domain.com` и `your-ws-domain.com` на ваши реальные домены.
+- Замените `YOUR_SERVER_IP` на внешний IP адрес вашего сервера (обязательно для TURN).
+- Если сервер находится за NAT, используйте формат: `INTERNAL_IP/EXTERNAL_IP` (например: `192.168.1.100/203.0.113.1`).
 
 ### 3. Сборка Docker образа
 
@@ -98,19 +121,48 @@ docker compose build
 docker build -t mcu-layout:latest .
 ```
 
-### 4. Запуск контейнера
+### 4. Настройка TURN сервера (coturn)
+
+TURN сервер уже включен в `docker-compose.yml` и будет запущен автоматически. 
+
+**Важно:** Убедитесь, что в `.env.production` указан правильный `EXTERNAL_IP`:
+
+```env
+EXTERNAL_IP=YOUR_SERVER_IP
+```
+
+Если сервер находится за NAT:
+```env
+EXTERNAL_IP=192.168.1.100/203.0.113.1
+```
+
+### 5. Запуск контейнеров
 
 ```bash
-# Запуск в фоновом режиме
+# Запуск всех сервисов (mcu-layout + coturn) в фоновом режиме
 docker compose up -d
 
-# Или используя docker run
-docker run -d \
-  --name mcu-layout \
-  --restart unless-stopped \
-  -p 3000:3000 \
-  --env-file .env.production \
-  mcu-layout:latest
+# Просмотр логов
+docker compose logs -f
+
+# Просмотр логов только приложения
+docker compose logs -f mcu-layout
+
+# Просмотр логов только TURN сервера
+docker compose logs -f coturn
+```
+
+**Проверка работы:**
+
+```bash
+# Проверка статуса контейнеров
+docker compose ps
+
+# Проверка работы приложения
+curl http://localhost:3000
+
+# Проверка работы TURN сервера
+docker compose exec coturn turnutils_stunclient localhost
 ```
 
 ### 5. Проверка статуса
@@ -195,6 +247,12 @@ server {
         
         # Таймауты для WebSocket и длительных запросов
         proxy_connect_timeout 60s;
+        
+        # Увеличенные буферы для WebRTC signalling
+        client_body_buffer_size 128k;
+        client_max_body_size 10M;
+        proxy_request_buffering off;
+        proxy_buffering off;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
@@ -278,6 +336,83 @@ sudo certbot --nginx -d your-domain.com -d www.your-domain.com
 ```
 
 Certbot автоматически обновит конфигурацию Nginx и настроит автоматическое обновление сертификата.
+
+## 🔥 Настройка Firewall для TURN сервера
+
+TURN сервер требует открытых UDP портов для работы. Настройте файрвол в зависимости от вашей системы.
+
+### Определение активного файрвола
+
+```bash
+# Проверка, какой файрвол используется
+which firewall-cmd
+which iptables
+which ufw
+
+# Проверка статуса firewalld (если установлен)
+sudo systemctl status firewalld
+```
+
+### Для firewalld (CentOS/RHEL/Fedora)
+
+```bash
+# Разрешить HTTP и HTTPS
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+
+# TURN сервер: Разрешить UDP порты для медиа-трафика
+sudo firewall-cmd --permanent --add-port=3478/udp
+sudo firewall-cmd --permanent --add-port=3478/tcp
+sudo firewall-cmd --permanent --add-port=49152-65535/udp
+
+# Применить изменения
+sudo firewall-cmd --reload
+
+# Проверить статус
+sudo firewall-cmd --list-all
+```
+
+### Для UFW (Ubuntu/Debian)
+
+```bash
+# Разрешить HTTP и HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# TURN сервер: Разрешить UDP порты для медиа-трафика
+sudo ufw allow 3478/udp
+sudo ufw allow 3478/tcp
+sudo ufw allow 49152:65535/udp
+
+# Включить файрвол (если еще не включен)
+sudo ufw enable
+
+# Проверить статус
+sudo ufw status
+```
+
+### Для iptables (прямое управление)
+
+```bash
+# Разрешить HTTP и HTTPS
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+# TURN сервер: Разрешить UDP порты для медиа-трафика
+sudo iptables -A INPUT -p udp --dport 3478 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 3478 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 49152:65535 -j ACCEPT
+
+# Сохранить правила (для CentOS/RHEL)
+sudo service iptables save
+# или
+sudo /usr/libexec/iptables/iptables.init save
+
+# Проверить правила
+sudo iptables -L -n
+```
+
+**Важно:** Если Docker использует iptables напрямую, убедитесь, что правила файрвола не конфликтуют с Docker.
 
 ## 🔄 Управление контейнером
 
@@ -440,6 +575,95 @@ docker compose build --no-cache
 ```
 
 ## 🐛 Решение проблем
+
+### Проблемы с WebRTC и TURN сервером
+
+#### Ошибка: "Failed to read connection-address and port from the candidate attribute"
+
+Эта ошибка возникает, когда сервер получает ICE candidates с локальными адресами (например, `.local` домены).
+
+**Решение:**
+
+1. **Убедитесь, что TURN сервер запущен:**
+   ```bash
+   docker compose ps
+   docker compose logs coturn
+   ```
+
+2. **Проверьте настройки TURN в `.env.production`:**
+   ```env
+   NEXT_PUBLIC_TURN_SERVER=turn:coturn:3478
+   NEXT_PUBLIC_TURN_USERNAME=turnuser
+   NEXT_PUBLIC_TURN_PASSWORD=turnpassword
+   NEXT_PUBLIC_WEBRTC_ICE_POLICY=relay
+   EXTERNAL_IP=YOUR_SERVER_IP
+   ```
+
+3. **Убедитесь, что EXTERNAL_IP указан правильно:**
+   - Если сервер имеет публичный IP: `EXTERNAL_IP=203.0.113.1`
+   - Если сервер за NAT: `EXTERNAL_IP=192.168.1.100/203.0.113.1`
+
+4. **Проверьте, что порты TURN открыты в файрволе:**
+   ```bash
+   # Для firewalld
+   sudo firewall-cmd --list-all | grep 3478
+   
+   # Для UFW
+   sudo ufw status | grep 3478
+   ```
+
+5. **Перезапустите контейнеры:**
+   ```bash
+   docker compose restart
+   ```
+
+#### TURN сервер не запускается
+
+**Проверьте логи:**
+```bash
+docker compose logs coturn
+```
+
+**Частые проблемы:**
+
+1. **Порт 3478 уже занят:**
+   ```bash
+   # Проверьте, что порт свободен
+   sudo netstat -tulpn | grep 3478
+   
+   # Если занят, остановите конфликтующий сервис или измените порт в docker-compose.yml
+   ```
+
+2. **Неправильный EXTERNAL_IP:**
+   - Убедитесь, что `EXTERNAL_IP` указан в `.env.production`
+   - Для сервера за NAT используйте формат `INTERNAL_IP/EXTERNAL_IP`
+
+3. **Проблемы с правами доступа к файлу конфигурации:**
+   ```bash
+   # Убедитесь, что файл coturn.conf существует и доступен
+   ls -la coturn.conf
+   ```
+
+#### Видео не воспроизводится
+
+1. **Проверьте логи приложения:**
+   ```bash
+   docker compose logs -f mcu-layout | grep VideoStream
+   ```
+
+2. **Проверьте, что TURN сервер используется:**
+   - В логах должно быть: `TURN server configured: turn:coturn:3478`
+   - В логах должно быть: `Using iceTransportPolicy: relay`
+
+3. **Проверьте настройки браузера:**
+   - Убедитесь, что браузер не блокирует WebRTC
+   - Проверьте консоль браузера на наличие ошибок
+
+4. **Проверьте сетевую связность:**
+   ```bash
+   # Из контейнера приложения проверьте доступность TURN
+   docker compose exec mcu-layout wget -O- http://coturn:3478
+   ```
 
 ### Контейнер не запускается
 
