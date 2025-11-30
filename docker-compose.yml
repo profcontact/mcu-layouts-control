@@ -12,10 +12,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # Переменные окружения из .env файла
-      - API_URL=${API_URL}
-      - WS_HOST=${WS_HOST}
-      - NEXT_PUBLIC_WS_HOST=${NEXT_PUBLIC_WS_HOST}
+      # Переменные окружения из .env файла (значения по умолчанию для предотвращения предупреждений)
+      - API_URL=${API_URL:-}
+      - WS_HOST=${WS_HOST:-}
+      - NEXT_PUBLIC_WS_HOST=${NEXT_PUBLIC_WS_HOST:-}
       # TURN сервер настройки (опционально)
       - NEXT_PUBLIC_TURN_SERVER=${NEXT_PUBLIC_TURN_SERVER:-turn:coturn:3478}
       - NEXT_PUBLIC_TURN_USERNAME=${NEXT_PUBLIC_TURN_USERNAME:-turnuser}

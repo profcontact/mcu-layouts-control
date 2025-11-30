@@ -64,10 +64,18 @@ git clone <repository-url> .
 
 ### 2. Настройка переменных окружения
 
+**Важно:** Docker Compose автоматически загружает переменные из файла `.env` в корне проекта. Также можно использовать `.env.production` через `env_file`.
+
 Создайте файл `.env.production` в корне проекта:
 
 ```bash
 nano .env.production
+```
+
+**Альтернативно:** Создайте файл `.env` в корне проекта (Docker Compose загрузит его автоматически):
+
+```bash
+nano .env
 ```
 
 Добавьте следующие переменные:
@@ -110,6 +118,12 @@ NODE_ENV=production
 - Замените `your-api-domain.com` и `your-ws-domain.com` на ваши реальные домены.
 - Замените `YOUR_SERVER_IP` на внешний IP адрес вашего сервера (обязательно для TURN).
 - Если сервер находится за NAT, используйте формат: `INTERNAL_IP/EXTERNAL_IP` (например: `192.168.1.100/203.0.113.1`).
+- **Для быстрого старта:** Скопируйте `.env.production.example` в `.env.production` и заполните значения:
+  ```bash
+  cp .env.production.example .env.production
+  nano .env.production
+  ```
+- Docker Compose автоматически загружает переменные из `.env` файла (если он существует в корне проекта).
 
 ### 3. Сборка Docker образа
 
