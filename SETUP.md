@@ -530,9 +530,33 @@ sudo certbot renew
 4. **Резервное копирование**: Настройте регулярное резервное копирование данных
 5. **Логи**: Регулярно проверяйте логи на наличие подозрительной активности
 
-### Настройка Firewall (UFW)
+### Настройка Firewall
+
+#### Определение используемого файрвола
+
+Сначала определите, какой файрвол используется на вашем сервере:
 
 ```bash
+# Проверка UFW
+which ufw
+# Если команда найдена, используется UFW
+
+# Проверка firewalld
+which firewall-cmd
+# Если команда найдена, используется firewalld
+
+# Проверка iptables
+which iptables
+# Если команда найдена, используется iptables
+```
+
+#### Вариант 1: UFW (Ubuntu/Debian)
+
+```bash
+# Установка UFW (если не установлен)
+sudo apt update
+sudo apt install ufw
+
 # Разрешить SSH
 sudo ufw allow 22/tcp
 
@@ -543,8 +567,11 @@ sudo ufw allow 443/tcp
 # WebRTC: Разрешить UDP порты для медиа-трафика
 # WebRTC использует UDP для передачи аудио/видео данных
 # Диапазон портов для WebRTC обычно 10000-20000, но может варьироваться
-# Если используется TURN сервер, нужно открыть его порты
 sudo ufw allow 10000:20000/udp
+
+# Если используется TURN сервер, откройте его порты:
+sudo ufw allow 3478/udp
+sudo ufw allow 49152:65535/udp
 
 # Включить firewall
 sudo ufw enable
@@ -553,12 +580,64 @@ sudo ufw enable
 sudo ufw status
 ```
 
-**Примечание:** Если у вас есть TURN сервер, откройте его порты отдельно. Например:
+#### Вариант 2: firewalld (CentOS/RHEL/Fedora)
+
 ```bash
-# Для стандартного TURN сервера (порты 3478, 49152-65535)
-sudo ufw allow 3478/udp
-sudo ufw allow 49152:65535/udp
+# Проверить статус
+sudo systemctl status firewalld
+
+# Если firewalld не запущен, запустите его
+sudo systemctl start firewalld
+sudo systemctl enable firewalld
+
+# Разрешить HTTP и HTTPS
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+
+# WebRTC: Разрешить UDP порты для медиа-трафика
+sudo firewall-cmd --permanent --add-port=10000-20000/udp
+
+# Если используется TURN сервер:
+sudo firewall-cmd --permanent --add-port=3478/udp
+sudo firewall-cmd --permanent --add-port=49152-65535/udp
+
+# Применить изменения
+sudo firewall-cmd --reload
+
+# Проверить статус
+sudo firewall-cmd --list-all
 ```
+
+#### Вариант 3: iptables (прямое управление)
+
+```bash
+# Разрешить HTTP и HTTPS
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+# WebRTC: Разрешить UDP порты для медиа-трафика
+sudo iptables -A INPUT -p udp --dport 10000:20000 -j ACCEPT
+
+# Если используется TURN сервер:
+sudo iptables -A INPUT -p udp --dport 3478 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 49152:65535 -j ACCEPT
+
+# Сохранить правила (зависит от дистрибутива)
+# Для Ubuntu/Debian:
+sudo iptables-save > /etc/iptables/rules.v4
+
+# Для CentOS/RHEL:
+sudo service iptables save
+# или
+sudo /usr/libexec/iptables/iptables.init save
+
+# Проверить правила
+sudo iptables -L -n
+```
+
+**Примечание:** Если у вас есть TURN сервер, откройте его порты отдельно. Стандартные порты TURN:
+- 3478/udp (STUN/TURN)
+- 49152-65535/udp (медиа-трафик TURN)
 
 ### Настройка Nginx для WebRTC
 
