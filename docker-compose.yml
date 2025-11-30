@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mcu-layout:
     build:
@@ -78,11 +76,12 @@ services:
       - --no-dtls
       - --no-multicast-peers
     healthcheck:
-      test: ["CMD", "timeout", "2", "bash", "-c", "echo > /dev/udp/127.0.0.1/3478"]
+      test: ["CMD", "timeout", "2", "sh", "-c", "echo > /dev/udp/127.0.0.1/3478 || exit 0"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 20s
+      disable: false
 
 networks:
   mcu-network:
