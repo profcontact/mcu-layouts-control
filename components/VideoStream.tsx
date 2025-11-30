@@ -263,11 +263,13 @@ export default function VideoStream({
 
         // Проверяем, что signature присутствует в URL перед отправкой
         const urlCheck = new URL(`http://dummy${httpSignallingUrl}`);
-        const hasSignature = urlCheck.searchParams.has('signature');
+        const signature = urlCheck.searchParams.get('signature');
+        const hasSignature = !!signature;
+        
         if (!hasSignature) {
           logger.warn('[VideoStream]', '⚠️ Signature missing in URL before sending!');
         } else {
-          logger.info('[VideoStream]', `Signature present in URL: ${urlCheck.searchParams.get('signature')?.substring(0, 20)}...`);
+          logger.info('[VideoStream]', `Signature present in URL: ${signature.substring(0, 20)}...`);
         }
 
         const signallingMessage = {
@@ -276,14 +278,24 @@ export default function VideoStream({
           candidates: candidates,
         };
 
+        // Формируем заголовки
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Session': localStorage.getItem('session_id') || '',
+        };
+        
+        // ВАЖНО: Некоторые бэкенды могут требовать signature в заголовке
+        // Передаем signature в заголовке тоже, если он есть
+        if (signature) {
+          headers['X-Signature'] = signature;
+          headers['Signature'] = signature;
+        }
+
         logger.info('[VideoStream]', `Sending HTTP POST via proxy to: ${httpSignallingUrl.substring(0, 100)}...`);
 
         const response = await fetch(proxyUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Session': localStorage.getItem('session_id') || '',
-          },
+          headers,
           body: JSON.stringify(signallingMessage),
         });
 

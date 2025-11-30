@@ -62,13 +62,33 @@ export async function POST(request: NextRequest) {
     
     console.log('[Media Signalling] Final backend URL:', backendUrl.substring(0, 250));
 
+    // Извлекаем signature из URL, если он есть, для возможной передачи в заголовках
+    const urlObj = new URL(backendUrl);
+    const signature = urlObj.searchParams.get('signature');
+    
+    // Формируем заголовки
+    const fetchHeaders: Record<string, string> = {
+      ...authHeaders,
+      'Content-Type': 'application/json',
+    };
+    
+    // ВАЖНО: Некоторые бэкенды могут требовать signature в заголовке, а не в URL
+    // Попробуем передать signature в заголовке, если он есть
+    if (signature) {
+      fetchHeaders['X-Signature'] = signature;
+      // Также пробуем другие варианты заголовков
+      fetchHeaders['Signature'] = signature;
+    }
+    
+    console.log('[Media Signalling] Request headers:', Object.keys(fetchHeaders).join(', '));
+    if (signature) {
+      console.log('[Media Signalling] Signature in header:', signature.substring(0, 30) + '...');
+    }
+
     // Отправляем POST запрос на бэкенд
     const response = await fetch(backendUrl, {
       method: 'POST',
-      headers: {
-        ...authHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: fetchHeaders,
       body: JSON.stringify(body),
     });
 
