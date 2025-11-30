@@ -47,6 +47,8 @@ services:
     image: coturn/coturn:latest
     container_name: mcu-layout-coturn
     restart: unless-stopped
+    stop_grace_period: 10s
+    stop_signal: SIGTERM
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
@@ -91,6 +93,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    # Отключаем healthcheck при остановке для быстрой остановки
+    init: true
 
 networks:
   mcu-network:
