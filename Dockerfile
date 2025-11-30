@@ -7,6 +7,9 @@ WORKDIR /app
 
 # Копируем файлы зависимостей
 COPY package.json package-lock.json* ./
+# Обновляем npm до последней версии для лучшей совместимости
+RUN npm install -g npm@latest
+# Используем npm ci для чистой установки (быстрее и надежнее для production)
 RUN npm ci
 
 # Stage 2: Builder
