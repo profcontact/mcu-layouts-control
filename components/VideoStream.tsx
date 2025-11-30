@@ -236,16 +236,15 @@ export default function VideoStream({
             const streamId = urlMatch[1];
             const queryString = urlMatch[2] || '';
             
-            // Парсим query параметры
-            // ВАЖНО: signature может быть нужен для HTTP POST signaling в некоторых случаях
-            // Проверяем, нужен ли signature для HTTP POST
+            // Парсим query параметры и убираем signature (он нужен только для WebSocket)
             const urlObj = new URL(`http://dummy${queryString}`);
             const params = new URLSearchParams();
             
-            // Сохраняем все параметры, включая signature
-            // Если сервер требует signature, он должен быть в URL
+            // Сохраняем только нужные параметры (server и другие, кроме signature)
             urlObj.searchParams.forEach((value, key) => {
-              params.set(key, value);
+              if (key !== 'signature') {
+                params.set(key, value);
+              }
             });
             
             const queryParams = params.toString() ? `?${params.toString()}` : '';
