@@ -34,13 +34,15 @@ services:
       retries: 3
       start_period: 40s
     # Ограничения ресурсов
+    # Примечание: Если на сервере меньше ресурсов, закомментируйте или уменьшите эти значения
     deploy:
       resources:
         limits:
-          cpus: '2'
+          # Используем 1 CPU или меньше, если доступно меньше
+          cpus: '1'
           memory: 2G
         reservations:
-          cpus: '0.5'
+          cpus: '0.25'
           memory: 512M
 
   coturn:
