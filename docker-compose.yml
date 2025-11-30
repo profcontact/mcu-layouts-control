@@ -7,14 +7,12 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    # Настройка DNS для разрешения внешних доменов
+    # Настройка DNS: сначала используем DNS хоста, затем публичные DNS как резерв
     dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
-    # Альтернативно: используйте DNS хоста
-    # dns:
-    #   - 127.0.0.11  # Docker's internal DNS
+      - 127.0.0.11  # Docker's internal DNS (использует DNS хоста)
+      - 8.8.8.8     # Google DNS (резервный)
+      - 8.8.4.4     # Google DNS (резервный)
+      - 1.1.1.1     # Cloudflare DNS (резервный)
     environment:
       - NODE_ENV=production
       - PORT=3000
