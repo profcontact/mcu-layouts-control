@@ -5,33 +5,15 @@ import { logger } from '@/lib/logger';
 
 interface VideoStreamProps {
   streamUrl: string;
-  protocol?: 'WEBRTC' | 'WEBRTC2' | string;
+  protocol?: string; // Оставлено для совместимости, но не используется
   participantName?: string;
   muted?: boolean;
   className?: string;
 }
 
-type SignallingProtocol = 'WEBRTC' | 'WEBRTC2';
-
-function resolveSignallingProtocol(streamUrl: string, provided?: string): SignallingProtocol {
-  const normalizedProvided = provided?.toUpperCase();
-  if (normalizedProvided === 'WEBRTC' || normalizedProvided === 'WEBRTC2') {
-    return normalizedProvided;
-  }
-
-  // Если URL содержит /websocket/, это WebRTC2
-  const url = streamUrl.toLowerCase();
-  if (url.includes('/websocket/')) {
-    return 'WEBRTC2';
-  }
-
-  // По умолчанию WebRTC (HTTP POST)
-  return 'WEBRTC';
-}
-
 /**
  * Компонент для отображения WebRTC видео-трансляции
- * Поддерживает как HTTP POST (WebRTC), так и WebSocket (WebRTC2) signalling
+ * Использует HTTP POST signalling (WebRTC)
  */
 export default function VideoStream({
   streamUrl,
@@ -41,7 +23,6 @@ export default function VideoStream({
   className = '',
 }: VideoStreamProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +35,6 @@ export default function VideoStream({
     }
 
     let mounted = true;
-    const selectedProtocol = resolveSignallingProtocol(streamUrl, protocol);
-    logger.info('[VideoStream]', `Selected signalling protocol: ${selectedProtocol}`);
 
     const setupWebRTCSignalling = async () => {
       try {
@@ -387,445 +366,20 @@ export default function VideoStream({
       }
     };
 
-    const setupWebSocketSignalling = async () => {
-      let pendingTracks: MediaStream[] = [];
-
-      try {
-        logger.info('[VideoStream]', `Connecting to ${participantName || 'stream'}...`);
-        logger.info('[VideoStream]', 'Using WebSocket signalling (WebRTC2)');
-
-        // Создаем RTCPeerConnection для WebSocket signalling
-        // Используем iceTransportPolicy для контроля типов кандидатов
-        const icePolicy = (typeof window !== 'undefined' && 
-          process.env.NEXT_PUBLIC_WEBRTC_ICE_POLICY === 'relay') 
-          ? 'relay' 
-          : 'all';
-        
-        // Настройка ICE серверов (STUN и TURN)
-        const turnServer = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_SERVER : null;
-        const turnUsername = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_USERNAME : null;
-        const turnPassword = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_PASSWORD : null;
-        
-        const iceServers: RTCIceServer[] = [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ];
-        
-        // Добавляем TURN сервер, если настроен
-        if (turnServer && turnUsername && turnPassword) {
-          iceServers.push({
-            urls: turnServer,
-            username: turnUsername,
-            credential: turnPassword,
-          });
-          logger.info('[VideoStream]', `TURN server configured: ${turnServer}`);
-        }
-        
-        const pc = new RTCPeerConnection({
-          iceServers,
-          iceTransportPolicy: icePolicy as RTCIceTransportPolicy,
-        });
-        
-        if (icePolicy === 'relay') {
-          logger.info('[VideoStream]', 'Using iceTransportPolicy: relay (only TURN candidates)');
-          if (!turnServer) {
-            logger.warn('[VideoStream]', '⚠️ iceTransportPolicy is set to "relay" but no TURN server is configured!');
-          }
-        } else {
-          logger.info('[VideoStream]', 'Using iceTransportPolicy: all (with local candidate filtering)');
-        }
-
-        pcRef.current = pc;
-
-        pc.ontrack = (event) => {
-          logger.success('[VideoStream]', `Received track: ${event.track.kind} (id: ${event.track.id})`);
-          logger.info('[VideoStream]', `Track details:`, {
-            kind: event.track.kind,
-            id: event.track.id,
-            enabled: event.track.enabled,
-            readyState: event.track.readyState,
-            streamsCount: event.streams.length,
-            hasRemoteDescription: !!pc.remoteDescription,
-          });
-          
-          if (event.streams && event.streams.length > 0) {
-            const stream = event.streams[0];
-            logger.info('[VideoStream]', `Track stream ID: ${stream.id}, tracks: ${stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', ')}`);
-            
-            // Применяем трек к video элементу
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              logger.success('[VideoStream]', 'Video stream applied to video element');
-              
-              // Проверяем, что video элемент готов к воспроизведению
-              videoRef.current.onloadedmetadata = async () => {
-                logger.success('[VideoStream]', 'Video metadata loaded');
-                if (mounted) {
-                  setIsConnecting(false);
-                }
-                // Явно вызываем play() после загрузки метаданных
-                if (videoRef.current) {
-                  try {
-                    await videoRef.current.play();
-                    logger.success('[VideoStream]', 'Video play() called after metadata loaded');
-                  } catch (err: any) {
-                    logger.warn('[VideoStream]', 'Video play() failed after metadata (may be blocked):', err.message);
-                  }
-                }
-              };
-              
-              videoRef.current.oncanplay = async () => {
-                logger.success('[VideoStream]', 'Video can play (from ontrack handler)');
-                // Также пробуем запустить воспроизведение при canPlay
-                if (videoRef.current && videoRef.current.paused) {
-                  try {
-                    await videoRef.current.play();
-                    logger.success('[VideoStream]', 'Video play() called on canPlay (from ontrack handler)');
-                  } catch (err: any) {
-                    logger.warn('[VideoStream]', 'Video play() failed on canPlay (from ontrack handler):', err.message);
-                  }
-                }
-              };
-              
-              videoRef.current.onplay = () => {
-                logger.success('[VideoStream]', 'Video started playing (from ontrack handler)');
-              };
-              
-              videoRef.current.onplaying = () => {
-                logger.success('[VideoStream]', 'Video is now playing (from ontrack handler)');
-              };
-              
-              videoRef.current.onerror = (err) => {
-                logger.error('[VideoStream]', 'Video element error:', err);
-              };
-            } else {
-              logger.warn('[VideoStream]', 'Video ref is null, storing track');
-              pendingTracks.push(stream);
-            }
-          }
-        };
-
-        pc.oniceconnectionstatechange = () => {
-          logger.info('[VideoStream]', `ICE connection state: ${pc.iceConnectionState}`);
-          logger.info('[VideoStream]', 'Full connection state:', {
-            iceConnectionState: pc.iceConnectionState,
-            connectionState: pc.connectionState,
-            signalingState: pc.signalingState,
-            iceGatheringState: pc.iceGatheringState,
-          });
-          
-          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-            if (mounted) {
-              logger.success('[VideoStream]', 'ICE connection established');
-              setIsConnecting(false);
-              
-              // Проверяем, есть ли треки
-              if (pc.getReceivers().length > 0) {
-                logger.info('[VideoStream]', `Active receivers: ${pc.getReceivers().length}`);
-                pc.getReceivers().forEach((receiver, index) => {
-                  logger.info('[VideoStream]', `Receiver ${index}:`, {
-                    track: receiver.track ? `${receiver.track.kind} (${receiver.track.id})` : 'no track',
-                    transport: receiver.transport ? 'has transport' : 'no transport',
-                  });
-                });
-              } else {
-                logger.warn('[VideoStream]', 'No receivers found after connection');
-              }
-            }
-          } else if (pc.iceConnectionState === 'failed') {
-            if (mounted) {
-              logger.error('[VideoStream]', 'ICE connection failed');
-              setError('Не удалось установить соединение');
-              setIsConnecting(false);
-            }
-          }
-        };
-
-        pc.onconnectionstatechange = () => {
-          logger.info('[VideoStream]', `Connection state: ${pc.connectionState}`);
-        };
-
-        const buildWebSocketUrl = () => {
-          const ensureContentType = (rawUrl: string) => {
-            const urlObj = new URL(rawUrl);
-            if (!urlObj.searchParams.has('contentType')) {
-              urlObj.searchParams.set('contentType', 'CONFERENCE_PARTICIPANT_PRIMARY');
-            }
-            const sessionId = typeof window !== 'undefined' ? localStorage.getItem('session_id') : null;
-            if (sessionId && !urlObj.searchParams.has('Session')) {
-              urlObj.searchParams.set('Session', sessionId);
-            }
-            return urlObj.toString();
-          };
-
-          const trimmedUrl = streamUrl.trim();
-          if (trimmedUrl.startsWith('ws://') || trimmedUrl.startsWith('wss://')) {
-            return ensureContentType(trimmedUrl);
-          }
-
-          if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
-            const parsed = new URL(trimmedUrl);
-            parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
-            return ensureContentType(parsed.toString());
-          }
-
-          const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          const hostFromEnv = process.env.NEXT_PUBLIC_WS_HOST;
-          const host = hostFromEnv && hostFromEnv.length > 0 ? hostFromEnv : window.location.host;
-          const normalizedPath = trimmedUrl.startsWith('/') ? trimmedUrl : `/${trimmedUrl}`;
-          return ensureContentType(`${wsProtocol}//${host}${normalizedPath}`);
-        };
-
-        const wsUrl = buildWebSocketUrl();
-        logger.info('[VideoStream]', `Connecting to WebSocket: ${wsUrl.substring(0, 150)}...`);
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        const candidates: RTCIceCandidateInit[] = [];
-        let iceGatheringComplete = false;
-        let offerSent = false;
-
-        // Функция для проверки, является ли candidate локальным
-        const isLocalCandidate = (candidate: string): boolean => {
-          // Пропускаем candidates с .local доменом (mDNS)
-          if (candidate.includes('.local')) return true;
-          
-          // Пропускаем локальные IP адреса (127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-          const localIpPatterns = [
-            /127\.\d+\.\d+\.\d+/,           // 127.x.x.x
-            /192\.168\.\d+\.\d+/,           // 192.168.x.x
-            /10\.\d+\.\d+\.\d+/,            // 10.x.x.x
-            /172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+/, // 172.16-31.x.x
-            /::1/,                          // IPv6 localhost
-            /fe80:/,                        // IPv6 link-local
-          ];
-          
-          return localIpPatterns.some(pattern => pattern.test(candidate));
-        };
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            // Пропускаем локальные candidates, так как сервер не может их обработать
-            if (isLocalCandidate(event.candidate.candidate)) {
-              logger.info('[VideoStream]', 'Skipping local candidate:', event.candidate.candidate.substring(0, 100));
-              return;
-            }
-            candidates.push({
-              candidate: event.candidate.candidate,
-              sdpMLineIndex: event.candidate.sdpMLineIndex,
-              sdpMid: event.candidate.sdpMid,
-            });
-          } else {
-            iceGatheringComplete = true;
-            logger.info('[VideoStream]', `ICE gathering complete. Total candidates: ${candidates.length}`);
-            if (offerSent && ws.readyState === WebSocket.OPEN) {
-              if (candidates.length > 0) {
-                logger.info('[VideoStream]', 'Sending remaining ICE candidates');
-                ws.send(JSON.stringify({ candidates: candidates }));
-              }
-            }
-          }
-        };
-
-        ws.onopen = async () => {
-          logger.success('[VideoStream]', 'WebSocket connected');
-          
-          try {
-            logger.info('[VideoStream]', 'Creating offer for WebRTC2...');
-            
-            const offer = await pc.createOffer({ 
-              offerToReceiveAudio: true, 
-              offerToReceiveVideo: true 
-            });
-            await pc.setLocalDescription(offer);
-            logger.success('[VideoStream]', 'Local description set');
-            
-            const waitForIce = new Promise<void>((resolve) => {
-              const checkInterval = setInterval(() => {
-                if (iceGatheringComplete || pc.iceGatheringState === 'complete') {
-                  clearInterval(checkInterval);
-                  resolve();
-                }
-              }, 100);
-              setTimeout(() => {
-                clearInterval(checkInterval);
-                resolve();
-              }, 3000);
-            });
-            
-            await waitForIce;
-            logger.info('[VideoStream]', `Collected ${candidates.length} ICE candidates`);
-            
-            // Отправляем offer с SDP и candidates
-            // Пробуем разные форматы, начиная с простого
-            const offerMessage = {
-              sdp: offer.sdp,
-              content: 'PRIMARY',
-              candidates: candidates,
-            };
-            
-            logger.info('[VideoStream]', 'Sending offer to server');
-            
-            ws.send(JSON.stringify(offerMessage));
-            offerSent = true;
-          } catch (err: any) {
-            logger.error('[VideoStream]', 'Error creating/sending offer:', err);
-            if (mounted) {
-              setError(`Ошибка создания offer: ${err.message}`);
-              setIsConnecting(false);
-            }
-          }
-        };
-
-        ws.onmessage = async (event) => {
-          try {
-            logger.info('[VideoStream]', '📨 Received message from server');
-            
-            let data: any;
-            try {
-              data = JSON.parse(event.data);
-            } catch (parseErr) {
-              logger.warn('[VideoStream]', 'Failed to parse message as JSON:', event.data);
-              return;
-            }
-            
-            // Обрабатываем SDP answer (может быть в разных полях)
-            let sdpAnswer: string | null = null;
-            if (data.sdp && typeof data.sdp === 'string') {
-              sdpAnswer = data.sdp;
-            } else if (data.sessionDescription && typeof data.sessionDescription === 'string') {
-              sdpAnswer = data.sessionDescription;
-            } else if (data.answer && typeof data.answer === 'string') {
-              sdpAnswer = data.answer;
-            }
-            
-            if (sdpAnswer) {
-              logger.success('[VideoStream]', 'Received SDP answer from server');
-              try {
-                await pc.setRemoteDescription(new RTCSessionDescription({
-                  type: 'answer',
-                  sdp: sdpAnswer,
-                }));
-                logger.success('[VideoStream]', 'Remote description set successfully');
-                logger.info('[VideoStream]', 'Connection state after setting remote description:', {
-                  iceConnectionState: pc.iceConnectionState,
-                  connectionState: pc.connectionState,
-                  signalingState: pc.signalingState,
-                  receiversCount: pc.getReceivers().length,
-                });
-                
-                // Проверяем треки после установки remote description
-                if (pc.getReceivers().length > 0) {
-                  logger.info('[VideoStream]', `Found ${pc.getReceivers().length} receiver(s) after setting remote description`);
-                  pc.getReceivers().forEach((receiver, index) => {
-                    if (receiver.track) {
-                      logger.info('[VideoStream]', `Receiver ${index} track: ${receiver.track.kind} (${receiver.track.id}), enabled: ${receiver.track.enabled}`);
-                    }
-                  });
-                }
-                
-                // Применяем сохраненные треки, если они были получены до установки remote description
-                if (pendingTracks.length > 0 && videoRef.current) {
-                  logger.info('[VideoStream]', `Applying ${pendingTracks.length} pending track(s)`);
-                  videoRef.current.srcObject = pendingTracks[0];
-                  pendingTracks = [];
-                } else if (videoRef.current && !videoRef.current.srcObject) {
-                  // Если треки еще не пришли, проверяем через небольшую задержку
-                  setTimeout(() => {
-                    if (pc.getReceivers().length > 0 && videoRef.current && !videoRef.current.srcObject) {
-                      logger.info('[VideoStream]', 'Attempting to get stream from receivers');
-                      const receivers = pc.getReceivers();
-                      for (const receiver of receivers) {
-                        if (receiver.track && receiver.track.kind === 'video') {
-                          const stream = new MediaStream([receiver.track]);
-                          videoRef.current.srcObject = stream;
-                          logger.success('[VideoStream]', 'Created stream from receiver track');
-                          break;
-                        }
-                      }
-                    }
-                  }, 500);
-                }
-              } catch (sdpErr: any) {
-                logger.error('[VideoStream]', 'Error setting remote description:', sdpErr);
-                throw sdpErr;
-              }
-            }
-
-            // Обрабатываем ICE кандидаты
-            if (data.candidates && Array.isArray(data.candidates)) {
-              logger.info('[VideoStream]', `Received ${data.candidates.length} ICE candidates`);
-              for (const cand of data.candidates) {
-                try {
-                  await pc.addIceCandidate(new RTCIceCandidate(cand));
-                } catch (candErr: any) {
-                  logger.warn('[VideoStream]', 'Error adding ICE candidate:', candErr);
-                }
-              }
-            } else if (data.candidate) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-              } catch (candErr: any) {
-                logger.warn('[VideoStream]', 'Error adding ICE candidate:', candErr);
-              }
-            }
-            
-            // Игнорируем неизвестные поля
-          } catch (err: any) {
-            logger.error('[VideoStream]', 'Error processing message:', err);
-            if (mounted && !error) {
-              setError(`Ошибка обработки сообщения: ${err.message}`);
-            }
-          }
-        };
-
-        ws.onerror = (error) => {
-          logger.error('[VideoStream]', 'WebSocket error:', error);
-          if (mounted) {
-            setError('Ошибка WebSocket соединения');
-            setIsConnecting(false);
-          }
-        };
-
-        ws.onclose = (event) => {
-          logger.info('[VideoStream]', `WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-          if (mounted && event.code !== 1000) {
-            setError(`WebSocket закрыт: ${event.reason || 'Неизвестная причина'}`);
-            setIsConnecting(false);
-          }
-        };
-
-      } catch (err: any) {
-        logger.error('[VideoStream]', 'Setup error:', err);
-        if (mounted) {
-          setError(err.message || 'Ошибка подключения');
-          setIsConnecting(false);
-        }
-      }
-    };
-
-    if (selectedProtocol === 'WEBRTC2') {
-      setupWebSocketSignalling();
-    } else {
-      setupWebRTCSignalling();
-    }
+    // Всегда используем HTTP POST WebRTC signalling
+    setupWebRTCSignalling();
 
     // Cleanup
     return () => {
       mounted = false;
       logger.cleanup('[VideoStream]', 'Closing connections');
       
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
       }
     };
-  }, [streamUrl, participantName, protocol]);
+  }, [streamUrl, participantName]);
 
   return (
     <div className={`relative bg-gray-900 rounded-lg overflow-hidden ${className}`}>
