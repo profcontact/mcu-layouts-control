@@ -63,12 +63,30 @@ export default function VideoStream({
         logger.info('[VideoStream]', `Stream URL: ${streamUrl.substring(0, 150)}...`);
 
         // Создаем RTCPeerConnection
+        // Используем iceTransportPolicy для контроля типов кандидатов
+        // "all" - все кандидаты (host, srflx, relay) - по умолчанию
+        // "relay" - только relay кандидаты через TURN (исключает локальные адреса)
+        // Можно настроить через переменную окружения NEXT_PUBLIC_WEBRTC_ICE_POLICY
+        const icePolicy = (typeof window !== 'undefined' && 
+          process.env.NEXT_PUBLIC_WEBRTC_ICE_POLICY === 'relay') 
+          ? 'relay' 
+          : 'all';
+        
         const pc = new RTCPeerConnection({
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            // Если используется TURN сервер, добавьте его здесь:
+            // { urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' },
           ],
+          iceTransportPolicy: icePolicy as RTCIceTransportPolicy,
         });
+        
+        if (icePolicy === 'relay') {
+          logger.info('[VideoStream]', 'Using iceTransportPolicy: relay (only TURN candidates)');
+        } else {
+          logger.info('[VideoStream]', 'Using iceTransportPolicy: all (with local candidate filtering)');
+        }
 
         pcRef.current = pc;
 
@@ -358,12 +376,28 @@ export default function VideoStream({
         logger.info('[VideoStream]', `Connecting to ${participantName || 'stream'}...`);
         logger.info('[VideoStream]', 'Using WebSocket signalling (WebRTC2)');
 
+        // Создаем RTCPeerConnection для WebSocket signalling
+        // Используем iceTransportPolicy для контроля типов кандидатов
+        const icePolicy = (typeof window !== 'undefined' && 
+          process.env.NEXT_PUBLIC_WEBRTC_ICE_POLICY === 'relay') 
+          ? 'relay' 
+          : 'all';
+        
         const pc = new RTCPeerConnection({
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            // Если используется TURN сервер, добавьте его здесь:
+            // { urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' },
           ],
+          iceTransportPolicy: icePolicy as RTCIceTransportPolicy,
         });
+        
+        if (icePolicy === 'relay') {
+          logger.info('[VideoStream]', 'Using iceTransportPolicy: relay (only TURN candidates)');
+        } else {
+          logger.info('[VideoStream]', 'Using iceTransportPolicy: all (with local candidate filtering)');
+        }
 
         pcRef.current = pc;
 
