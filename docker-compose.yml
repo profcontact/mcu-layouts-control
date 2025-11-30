@@ -56,29 +56,33 @@ services:
       - TURN_PASSWORD=${TURN_PASSWORD:-turnpassword}
       - EXTERNAL_IP=${EXTERNAL_IP:-}
       - REALM=${TURN_REALM:-localhost}
-    # Добавляем EXTERNAL_IP в команду, если он установлен
-    entrypoint: ["/bin/sh", "-c"]
-    # Используем скрипт для динамического добавления --external-ip
     volumes:
       - ./coturn.conf:/etc/turnserver.conf:ro
     networks:
       - mcu-network
+    # Используем entrypoint скрипт для динамического добавления --external-ip
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - -n
-      - --log-file=stdout
-      - --listening-ip=0.0.0.0
-      - --listening-port=3478
-      - --min-port=49152
-      - --max-port=65535
-      - --fingerprint
-      - --lt-cred-mech
-      - --user=${TURN_USERNAME:-turnuser}:${TURN_PASSWORD:-turnpassword}
-      - --realm=${TURN_REALM:-localhost}
-      - --no-cli
-      - --no-tls
-      - --no-dtls
-      - --no-multicast-peers
-      # EXTERNAL_IP будет добавлен через переменную окружения, если она установлена
+      - |
+        EXTERNAL_IP_ARG=""
+        if [ -n "$$EXTERNAL_IP" ]; then
+          EXTERNAL_IP_ARG="--external-ip=$$EXTERNAL_IP"
+        fi
+        exec turnserver -n \
+          --log-file=stdout \
+          --listening-ip=0.0.0.0 \
+          --listening-port=3478 \
+          --min-port=49152 \
+          --max-port=65535 \
+          --fingerprint \
+          --lt-cred-mech \
+          --user=$${TURN_USERNAME:-turnuser}:$${TURN_PASSWORD:-turnpassword} \
+          --realm=$${TURN_REALM:-localhost} \
+          $$EXTERNAL_IP_ARG \
+          --no-cli \
+          --no-tls \
+          --no-dtls \
+          --no-multicast-peers
     # Упрощенный healthcheck для coturn
     # Проверяем, что процесс coturn запущен
     healthcheck:
