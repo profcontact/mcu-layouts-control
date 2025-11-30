@@ -687,6 +687,168 @@ location /api/media/signalling {
 }
 ```
 
+## 🎯 Настройка TURN сервера для WebRTC
+
+TURN (Traversal Using Relays around NAT) сервер необходим для установки WebRTC соединений в сложных сетевых условиях (NAT, файрволы). Он также решает проблему с локальными ICE candidates.
+
+### Установка coturn (TURN/STUN сервер)
+
+#### Для Ubuntu/Debian:
+
+```bash
+# Установка coturn
+sudo apt update
+sudo apt install coturn
+
+# Включить автозапуск
+sudo systemctl enable coturn
+```
+
+#### Для CentOS/RHEL:
+
+```bash
+# Установка coturn
+sudo yum install coturn
+# или для новых версий:
+sudo dnf install coturn
+
+# Включить автозапуск
+sudo systemctl enable coturn
+```
+
+### Конфигурация coturn
+
+1. **Отредактируйте конфигурационный файл:**
+
+```bash
+sudo nano /etc/turnserver.conf
+```
+
+2. **Добавьте следующие настройки:**
+
+```conf
+# Слушать на всех интерфейсах
+listening-port=3478
+listening-ip=0.0.0.0
+
+# Внешний IP адрес сервера (замените на ваш реальный IP)
+external-ip=YOUR_SERVER_IP
+
+# Если сервер находится за NAT, используйте:
+# external-ip=INTERNAL_IP/EXTERNAL_IP
+
+# Реалм (домен или имя сервера)
+realm=your-domain.com
+
+# Пользователи для TURN (username:password)
+# Рекомендуется использовать временные учетные данные
+user=turnuser:turnpassword
+
+# Диапазон портов для медиа-трафика
+min-port=49152
+max-port=65535
+
+# Логирование
+log-file=/var/log/turn.log
+verbose
+
+# Безопасность
+no-cli
+no-tls
+no-dtls
+
+# Отключить мультикаст
+no-multicast-peers
+
+# Разрешить только relay (рекомендуется для безопасности)
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+```
+
+3. **Запустите coturn:**
+
+```bash
+# Запустить сервис
+sudo systemctl start coturn
+
+# Проверить статус
+sudo systemctl status coturn
+
+# Проверить логи
+sudo tail -f /var/log/turn.log
+```
+
+### Настройка файрвола для TURN
+
+Откройте порты для TURN сервера (см. раздел "Настройка Firewall"):
+
+```bash
+# Для firewalld:
+sudo firewall-cmd --permanent --add-port=3478/udp
+sudo firewall-cmd --permanent --add-port=3478/tcp
+sudo firewall-cmd --permanent --add-port=49152-65535/udp
+sudo firewall-cmd --reload
+
+# Для iptables:
+sudo iptables -A INPUT -p udp --dport 3478 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 3478 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 49152:65535 -j ACCEPT
+```
+
+### Интеграция TURN сервера в приложение
+
+1. **Добавьте переменные окружения в `.env.local`:**
+
+```env
+# TURN сервер настройки
+NEXT_PUBLIC_TURN_SERVER=turn:your-turn-server.com:3478
+NEXT_PUBLIC_TURN_USERNAME=turnuser
+NEXT_PUBLIC_TURN_PASSWORD=turnpassword
+
+# Использовать только relay кандидаты (рекомендуется)
+NEXT_PUBLIC_WEBRTC_ICE_POLICY=relay
+```
+
+2. **Обновите `components/VideoStream.tsx` для использования переменных окружения:**
+
+TURN сервер уже поддерживается через переменные окружения. Убедитесь, что в коде есть:
+
+```typescript
+const turnServer = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_SERVER : null;
+const turnUsername = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_USERNAME : null;
+const turnPassword = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_PASSWORD : null;
+
+const iceServers = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
+
+if (turnServer && turnUsername && turnPassword) {
+  iceServers.push({
+    urls: turnServer,
+    username: turnUsername,
+    credential: turnPassword,
+  });
+}
+```
+
+3. **Пересоберите приложение:**
+
+```bash
+npm run build -- --webpack
+pm2 restart mcu-layout
+```
+
+### Альтернатива: Использование публичного TURN сервера
+
+Если у вас нет возможности настроить собственный TURN сервер, можно использовать публичные сервисы (не рекомендуется для продакшена):
+
+- **Twilio STUN/TURN**: https://www.twilio.com/stun-turn
+- **Xirsys**: https://xirsys.com/
+
 ## 🔧 Устранение проблем с WebRTC
 
 ### Проблема: Ошибка "Failed to read connection-address and port from the candidate attribute"
@@ -697,22 +859,19 @@ location /api/media/signalling {
 
 Если у вас настроен TURN сервер, используйте только relay кандидаты:
 
-1. Добавьте TURN сервер в `components/VideoStream.tsx`:
-```typescript
-iceServers: [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' },
-],
-```
+1. Настройте TURN сервер (см. раздел "Настройка TURN сервера для WebRTC")
 
 2. В `.env.local` добавьте:
 ```env
 NEXT_PUBLIC_WEBRTC_ICE_POLICY=relay
+NEXT_PUBLIC_TURN_SERVER=turn:your-turn-server.com:3478
+NEXT_PUBLIC_TURN_USERNAME=turnuser
+NEXT_PUBLIC_TURN_PASSWORD=turnpassword
 ```
 
 3. Пересоберите приложение:
 ```bash
-npm run build
+npm run build -- --webpack
 pm2 restart mcu-layout
 ```
 

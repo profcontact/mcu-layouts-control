@@ -72,18 +72,36 @@ export default function VideoStream({
           ? 'relay' 
           : 'all';
         
+        // Настройка ICE серверов (STUN и TURN)
+        const turnServer = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_SERVER : null;
+        const turnUsername = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_USERNAME : null;
+        const turnPassword = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_PASSWORD : null;
+        
+        const iceServers: RTCIceServer[] = [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ];
+        
+        // Добавляем TURN сервер, если настроен
+        if (turnServer && turnUsername && turnPassword) {
+          iceServers.push({
+            urls: turnServer,
+            username: turnUsername,
+            credential: turnPassword,
+          });
+          logger.info('[VideoStream]', `TURN server configured: ${turnServer}`);
+        }
+        
         const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            // Если используется TURN сервер, добавьте его здесь:
-            // { urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' },
-          ],
+          iceServers,
           iceTransportPolicy: icePolicy as RTCIceTransportPolicy,
         });
         
         if (icePolicy === 'relay') {
           logger.info('[VideoStream]', 'Using iceTransportPolicy: relay (only TURN candidates)');
+          if (!turnServer) {
+            logger.warn('[VideoStream]', '⚠️ iceTransportPolicy is set to "relay" but no TURN server is configured!');
+          }
         } else {
           logger.info('[VideoStream]', 'Using iceTransportPolicy: all (with local candidate filtering)');
         }
@@ -383,18 +401,36 @@ export default function VideoStream({
           ? 'relay' 
           : 'all';
         
+        // Настройка ICE серверов (STUN и TURN)
+        const turnServer = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_SERVER : null;
+        const turnUsername = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_USERNAME : null;
+        const turnPassword = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_TURN_PASSWORD : null;
+        
+        const iceServers: RTCIceServer[] = [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ];
+        
+        // Добавляем TURN сервер, если настроен
+        if (turnServer && turnUsername && turnPassword) {
+          iceServers.push({
+            urls: turnServer,
+            username: turnUsername,
+            credential: turnPassword,
+          });
+          logger.info('[VideoStream]', `TURN server configured: ${turnServer}`);
+        }
+        
         const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            // Если используется TURN сервер, добавьте его здесь:
-            // { urls: 'turn:your-turn-server.com:3478', username: 'user', credential: 'pass' },
-          ],
+          iceServers,
           iceTransportPolicy: icePolicy as RTCIceTransportPolicy,
         });
         
         if (icePolicy === 'relay') {
           logger.info('[VideoStream]', 'Using iceTransportPolicy: relay (only TURN candidates)');
+          if (!turnServer) {
+            logger.warn('[VideoStream]', '⚠️ iceTransportPolicy is set to "relay" but no TURN server is configured!');
+          }
         } else {
           logger.info('[VideoStream]', 'Using iceTransportPolicy: all (with local candidate filtering)');
         }
