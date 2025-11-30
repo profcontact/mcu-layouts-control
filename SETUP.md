@@ -540,11 +540,65 @@ sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
+# WebRTC: Разрешить UDP порты для медиа-трафика
+# WebRTC использует UDP для передачи аудио/видео данных
+# Диапазон портов для WebRTC обычно 10000-20000, но может варьироваться
+# Если используется TURN сервер, нужно открыть его порты
+sudo ufw allow 10000:20000/udp
+
 # Включить firewall
 sudo ufw enable
 
 # Проверить статус
 sudo ufw status
+```
+
+**Примечание:** Если у вас есть TURN сервер, откройте его порты отдельно. Например:
+```bash
+# Для стандартного TURN сервера (порты 3478, 49152-65535)
+sudo ufw allow 3478/udp
+sudo ufw allow 49152:65535/udp
+```
+
+### Настройка Nginx для WebRTC
+
+Добавьте следующие настройки в конфигурацию Nginx для улучшения работы WebRTC:
+
+```nginx
+# В блоке server добавьте:
+
+# Увеличенные буферы для WebRTC signalling
+client_body_buffer_size 128k;
+client_max_body_size 10M;
+
+# Настройки для WebRTC streaming
+proxy_request_buffering off;
+proxy_buffering off;
+proxy_http_version 1.1;
+
+# WebRTC signalling - дополнительные настройки
+location /api/media/signalling {
+    proxy_pass http://localhost:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # Увеличенные таймауты для WebRTC signalling
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+    
+    # Отключаем буферизацию для streaming ответов
+    proxy_buffering off;
+    proxy_cache off;
+    
+    # Дополнительные заголовки для WebRTC
+    proxy_set_header Connection '';
+    add_header Cache-Control 'no-cache';
+    add_header X-Accel-Buffering 'no';
+}
 ```
 
 ## 📞 Поддержка

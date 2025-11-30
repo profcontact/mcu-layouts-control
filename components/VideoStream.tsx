@@ -123,13 +123,32 @@ export default function VideoStream({
         };
 
         // Собираем ICE кандидаты
-        // Фильтруем локальные candidates с .local доменом, так как сервер не может их обработать
+        // Фильтруем локальные candidates, так как сервер не может их обработать
         const candidates: RTCIceCandidateInit[] = [];
+        
+        // Функция для проверки, является ли candidate локальным
+        const isLocalCandidate = (candidate: string): boolean => {
+          // Пропускаем candidates с .local доменом (mDNS)
+          if (candidate.includes('.local')) return true;
+          
+          // Пропускаем локальные IP адреса (127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+          const localIpPatterns = [
+            /127\.\d+\.\d+\.\d+/,           // 127.x.x.x
+            /192\.168\.\d+\.\d+/,           // 192.168.x.x
+            /10\.\d+\.\d+\.\d+/,            // 10.x.x.x
+            /172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+/, // 172.16-31.x.x
+            /::1/,                          // IPv6 localhost
+            /fe80:/,                        // IPv6 link-local
+          ];
+          
+          return localIpPatterns.some(pattern => pattern.test(candidate));
+        };
+        
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            // Пропускаем candidates с .local доменом (mDNS), так как сервер не может их обработать
-            if (event.candidate.candidate.includes('.local')) {
-              logger.info('[VideoStream]', 'Skipping local candidate with .local domain');
+            // Пропускаем локальные candidates, так как сервер не может их обработать
+            if (isLocalCandidate(event.candidate.candidate)) {
+              logger.info('[VideoStream]', 'Skipping local candidate:', event.candidate.candidate.substring(0, 100));
               return;
             }
             candidates.push({
@@ -496,11 +515,29 @@ export default function VideoStream({
         let iceGatheringComplete = false;
         let offerSent = false;
 
+        // Функция для проверки, является ли candidate локальным
+        const isLocalCandidate = (candidate: string): boolean => {
+          // Пропускаем candidates с .local доменом (mDNS)
+          if (candidate.includes('.local')) return true;
+          
+          // Пропускаем локальные IP адреса (127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+          const localIpPatterns = [
+            /127\.\d+\.\d+\.\d+/,           // 127.x.x.x
+            /192\.168\.\d+\.\d+/,           // 192.168.x.x
+            /10\.\d+\.\d+\.\d+/,            // 10.x.x.x
+            /172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+/, // 172.16-31.x.x
+            /::1/,                          // IPv6 localhost
+            /fe80:/,                        // IPv6 link-local
+          ];
+          
+          return localIpPatterns.some(pattern => pattern.test(candidate));
+        };
+
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            // Пропускаем candidates с .local доменом (mDNS), так как сервер не может их обработать
-            if (event.candidate.candidate.includes('.local')) {
-              logger.info('[VideoStream]', 'Skipping local candidate with .local domain');
+            // Пропускаем локальные candidates, так как сервер не может их обработать
+            if (isLocalCandidate(event.candidate.candidate)) {
+              logger.info('[VideoStream]', 'Skipping local candidate:', event.candidate.candidate.substring(0, 100));
               return;
             }
             candidates.push({
