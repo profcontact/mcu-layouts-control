@@ -5,17 +5,11 @@ services:
       dockerfile: Dockerfile
     container_name: mcu-layout
     restart: unless-stopped
-    ports:
-      - "3000:3000"
-    # Настройка DNS: используем DNS хоста напрямую (обход Docker's internal DNS)
-    # Docker's internal DNS (127.0.0.11) не работает, поэтому используем DNS хоста
-    dns:
-      - 192.168.88.212  # DNS хоста (из /etc/resolv.conf хоста)
-      - 8.8.8.8         # Google DNS (резервный)
-      - 8.8.4.4         # Google DNS (резервный)
-      - 1.1.1.1         # Cloudflare DNS (резервный)
-    # Принудительно отключаем использование Docker's internal DNS
-    # Это заставит контейнер использовать указанные DNS серверы напрямую
+    # Используем network_mode: host для доступа к сети хоста напрямую
+    # Это решает проблемы с DNS и дает полный доступ к сети хоста
+    network_mode: host
+    # Примечание: при network_mode: host не нужно указывать ports и networks
+    # Порт 3000 будет доступен напрямую на хосте
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -30,8 +24,7 @@ services:
       - NEXT_PUBLIC_WEBRTC_ICE_POLICY=${NEXT_PUBLIC_WEBRTC_ICE_POLICY:-all}
     env_file:
       - .env.production
-    networks:
-      - mcu-network
+    # Примечание: при network_mode: host не используется networks
     # Временно отключаем зависимость от coturn для диагностики
     # depends_on:
     #   - coturn
