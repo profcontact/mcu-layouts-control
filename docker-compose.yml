@@ -7,15 +7,15 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    # Настройка DNS: используем публичные DNS как основные
-    # Если Docker's internal DNS (127.0.0.11) не работает, используем публичные DNS
+    # Настройка DNS: используем DNS хоста напрямую (обход Docker's internal DNS)
+    # Docker's internal DNS (127.0.0.11) не работает, поэтому используем DNS хоста
     dns:
-      - 8.8.8.8     # Google DNS (основной)
-      - 8.8.4.4     # Google DNS (резервный)
-      - 1.1.1.1     # Cloudflare DNS (резервный)
-      - 1.0.0.1     # Cloudflare DNS (резервный)
-    # Альтернатива: использовать network_mode: host для доступа к DNS хоста напрямую
-    # network_mode: host  # Раскомментируйте, если нужно использовать DNS хоста
+      - 192.168.88.212  # DNS хоста (из /etc/resolv.conf хоста)
+      - 8.8.8.8         # Google DNS (резервный)
+      - 8.8.4.4         # Google DNS (резервный)
+      - 1.1.1.1         # Cloudflare DNS (резервный)
+    # Принудительно отключаем использование Docker's internal DNS
+    # Это заставит контейнер использовать указанные DNS серверы напрямую
     environment:
       - NODE_ENV=production
       - PORT=3000
