@@ -23,8 +23,9 @@ services:
       - .env.production
     networks:
       - mcu-network
-    depends_on:
-      - coturn
+    # Временно отключаем зависимость от coturn для диагностики
+    # depends_on:
+    #   - coturn
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
       interval: 30s
@@ -85,15 +86,13 @@ services:
           --no-tls \
           --no-dtls \
           --no-multicast-peers
-    # Упрощенный healthcheck для coturn
-    # Проверяем, что процесс coturn запущен
-    healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -q '[t]urnserver' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    # Отключаем healthcheck при остановке для быстрой остановки
+    # Временно отключаем healthcheck для coturn, чтобы контейнер мог запуститься
+    # healthcheck:
+    #   test: ["CMD-SHELL", "ps aux | grep -q '[t]urnserver' || exit 1"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 30s
     init: true
 
 networks:
