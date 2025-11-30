@@ -48,8 +48,8 @@ services:
     image: coturn/coturn:latest
     container_name: mcu-layout-coturn
     restart: unless-stopped
-    stop_grace_period: 5s
-    stop_signal: SIGKILL
+    stop_grace_period: 10s
+    stop_signal: SIGTERM
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
@@ -64,16 +64,18 @@ services:
     networks:
       - mcu-network
     # Используем entrypoint скрипт для динамического добавления --external-ip
-    # Добавляем обработку сигналов для корректной остановки
+    # Важно: используем exec чтобы turnserver стал основным процессом (PID 1)
+    # Это необходимо для корректной обработки SIGTERM сигналов
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        trap 'kill -TERM $$PID; wait $$PID' TERM INT
         EXTERNAL_IP_ARG=""
         if [ -n "$$EXTERNAL_IP" ]; then
           EXTERNAL_IP_ARG="--external-ip=$$EXTERNAL_IP"
         fi
-        turnserver -n \
+        # Используем exec чтобы turnserver стал PID 1 и правильно обрабатывал сигналы
+        # Флаг -n (no daemon) обязателен для foreground режима
+        exec turnserver -n \
           --log-file=stdout \
           --listening-ip=0.0.0.0 \
           --listening-port=3478 \
@@ -87,9 +89,7 @@ services:
           --no-cli \
           --no-tls \
           --no-dtls \
-          --no-multicast-peers &
-        PID=$$
-        wait $$PID
+          --no-multicast-peers
     # Временно отключаем healthcheck для coturn, чтобы контейнер мог запуститься
     # healthcheck:
     #   test: ["CMD-SHELL", "ps aux | grep -q '[t]urnserver' || exit 1"]
