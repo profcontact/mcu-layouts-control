@@ -246,6 +246,11 @@ server {
 
     # Максимальный размер загружаемых файлов
     client_max_body_size 10M;
+    
+    # ВАЖНО: Увеличенные буферы для больших URL с query параметрами (signature может быть длинным)
+    # По умолчанию Nginx ограничивает размер заголовков до 4KB, что может обрезать длинные URL
+    large_client_header_buffers 4 32k;
+    client_header_buffer_size 16k;
 
     # Проксирование к Docker контейнеру
     location / {
@@ -292,7 +297,7 @@ server {
         add_header X-Accel-Buffering 'no';
     }
 
-    # WebRTC signalling (длинные запросы)
+    # WebRTC signalling (длинные запросы с большими query параметрами)
     location /api/media/signalling {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -300,6 +305,11 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # ВАЖНО: Увеличенные буферы для больших URL с signature
+        # Это критично для передачи длинных query параметров
+        large_client_header_buffers 8 64k;
+        client_header_buffer_size 32k;
         
         # Увеличенные таймауты для WebRTC signalling
         proxy_connect_timeout 300s;
@@ -309,6 +319,9 @@ server {
         # Отключаем буферизацию для streaming ответов
         proxy_buffering off;
         proxy_cache off;
+        
+        # Сохраняем оригинальный query string (включая signature)
+        proxy_set_header X-Original-URI $request_uri;
     }
 
     # Статические файлы (опционально, для кэширования)
@@ -734,6 +747,49 @@ docker ps | grep mcu-layout
 2. Проверьте логи контейнера:
 ```bash
 docker logs mcu-layout
+```
+
+### Ошибка "Wrong or empty signature" в WebRTC signalling
+
+Эта ошибка может возникать, если:
+
+1. **Nginx обрезает длинные URL**: Проверьте настройки `large_client_header_buffers` в конфигурации Nginx
+   ```bash
+   # Проверьте текущие настройки
+   grep -r "large_client_header_buffers" /etc/nginx/
+   
+   # Убедитесь, что в конфигурации есть:
+   large_client_header_buffers 4 32k;  # или больше
+   client_header_buffer_size 16k;
+   ```
+
+2. **URL обрезается при передаче**: Проверьте логи приложения:
+   ```bash
+   docker logs mcu-layout | grep "Media Signalling"
+   ```
+   
+   В логах должно быть видно:
+   - `Path param received:` - полученный путь
+   - `Has signature in path:` - наличие signature
+   - `Final backend URL:` - финальный URL, отправляемый на бэкенд
+
+3. **Проверьте длину URL**: Signature может быть очень длинным. Убедитесь, что:
+   - Nginx настроен для больших заголовков (см. конфигурацию выше)
+   - Нет других прокси, которые могут обрезать URL
+   - Docker не ограничивает размер запросов
+
+4. **Проверьте логи Nginx**:
+   ```bash
+   tail -f /var/log/nginx/mcu-layout-error.log
+   ```
+   
+   Ищите ошибки типа `client sent too long URI` или `request URI too large`
+
+5. **Временное решение**: Если проблема сохраняется, проверьте, правильно ли передается URL через proxy:
+   ```bash
+   # В логах приложения должны быть записи о signature
+   docker logs mcu-layout 2>&1 | grep -i signature
+   ```
 ```
 
 3. Проверьте доступность приложения:
