@@ -60,13 +60,16 @@ WS_HOST=wss://your-ws-domain.com
 NEXT_PUBLIC_WS_HOST=your-ws-domain.com
 
 # TURN сервер настройки (опционально, но рекомендуется для production)
+# ВАЖНО: Используйте внешний IP адрес или домен, доступный из браузера!
+# Браузер клиента не может разрешить имя Docker контейнера
 # Формат: turn:host:port или turns:host:port (для TLS)
 # Примеры:
-#   - Локальный TURN сервер: turn:localhost:3478
-#   - TURN сервер в Docker: turn:coturn:3478
-#   - Внешний TURN сервер: turn:your-turn-server.com:3478
+#   - Внешний IP адрес: turn:YOUR_SERVER_IP:3478
+#   - Внешний домен: turn:your-turn-server.com:3478
 #   - TURN сервер с TLS: turns:your-turn-server.com:5349
-NEXT_PUBLIC_TURN_SERVER=turn:your-turn-server.com:3478
+#   - Локальный (только для разработки): turn:localhost:3478
+# НЕ ИСПОЛЬЗУЙТЕ имя Docker контейнера (turn:coturn:3478) - это не работает для браузера!
+NEXT_PUBLIC_TURN_SERVER=turn:YOUR_SERVER_IP:3478
 NEXT_PUBLIC_TURN_USERNAME=your-turn-username
 NEXT_PUBLIC_TURN_PASSWORD=your-turn-password
 

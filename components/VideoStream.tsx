@@ -182,18 +182,39 @@ export default function VideoStream({
         
         pc.onicecandidate = (event) => {
           if (event.candidate) {
+            logger.info('[VideoStream]', `ICE candidate received: ${event.candidate.type} - ${event.candidate.candidate.substring(0, 80)}...`);
+            
             // Пропускаем локальные candidates, так как сервер не может их обработать
             if (isLocalCandidate(event.candidate.candidate)) {
               logger.info('[VideoStream]', 'Skipping local candidate:', event.candidate.candidate.substring(0, 100));
               return;
             }
+            
             candidates.push({
               candidate: event.candidate.candidate,
               sdpMLineIndex: event.candidate.sdpMLineIndex,
               sdpMid: event.candidate.sdpMid,
             });
+            logger.info('[VideoStream]', `Added candidate (${candidates.length} total): ${event.candidate.type}`);
           } else {
             logger.info('[VideoStream]', `ICE gathering complete. Total candidates: ${candidates.length}`);
+            
+            // ВАЖНО: Если политика relay, но кандидатов нет, это проблема с TURN сервером
+            if (icePolicy === 'relay' && candidates.length === 0) {
+              logger.error('[VideoStream]', '⚠️ CRITICAL: No ICE candidates collected with relay policy!');
+              logger.error('[VideoStream]', 'TURN server may be unreachable. Check:');
+              logger.error('[VideoStream]', `  1. TURN server URL: ${turnServer || 'NOT SET'}`);
+              logger.error('[VideoStream]', `  2. TURN server must be accessible from browser (use external IP/domain, not Docker container name)`);
+              logger.error('[VideoStream]', `  3. TURN server ports must be open (3478 TCP/UDP, 49152-65535 UDP)`);
+            }
+          }
+        };
+        
+        // Обработчик ошибок ICE gathering
+        pc.onicegatheringstatechange = () => {
+          logger.info('[VideoStream]', `ICE gathering state: ${pc.iceGatheringState}`);
+          if (pc.iceGatheringState === 'complete') {
+            logger.info('[VideoStream]', `Final candidate count: ${candidates.length}`);
           }
         };
 

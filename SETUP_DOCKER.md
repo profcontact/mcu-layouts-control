@@ -91,9 +91,14 @@ WS_HOST=wss://your-ws-domain.com
 NEXT_PUBLIC_WS_HOST=your-ws-domain.com
 
 # TURN сервер настройки (опционально, но рекомендуется)
-# Если TURN сервер запущен в Docker, используйте имя сервиса: turn:coturn:3478
-# Если TURN сервер на отдельном хосте, используйте: turn:your-turn-server.com:3478
-NEXT_PUBLIC_TURN_SERVER=turn:coturn:3478
+# ВАЖНО: Используйте внешний IP адрес или домен, НЕ имя Docker контейнера!
+# Браузер клиента не может разрешить имя Docker контейнера (coturn)
+# Примеры:
+#   - Внешний IP: turn:YOUR_SERVER_IP:3478
+#   - Домен: turn:your-turn-server.com:3478
+#   - С TLS: turns:your-turn-server.com:5349
+# НЕ ИСПОЛЬЗУЙТЕ: turn:coturn:3478 (это работает только внутри Docker сети)
+NEXT_PUBLIC_TURN_SERVER=turn:YOUR_SERVER_IP:3478
 NEXT_PUBLIC_TURN_USERNAME=turnuser
 NEXT_PUBLIC_TURN_PASSWORD=turnpassword
 
