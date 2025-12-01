@@ -92,6 +92,16 @@ export default function VideoStream({
         let pendingTracks: MediaStream[] = [];
         pc.ontrack = (event) => {
           logger.success('[VideoStream]', `Received track: ${event.track.kind} (${event.track.id})`);
+          logger.info('[VideoStream]', `Track details:`, {
+            kind: event.track.kind,
+            id: event.track.id,
+            enabled: event.track.enabled,
+            readyState: event.track.readyState,
+            muted: event.track.muted,
+            streamsCount: event.streams.length,
+            hasRemoteDescription: !!pc.remoteDescription,
+          });
+          
           if (event.streams && event.streams.length > 0) {
             const stream = event.streams[0];
             logger.info('[VideoStream]', `Track stream ID: ${stream.id}, tracks: ${stream.getTracks().map(t => `${t.kind}:${t.id}`).join(', ')}`);
@@ -105,8 +115,19 @@ export default function VideoStream({
               if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 logger.success('[VideoStream]', 'Video stream applied to video element');
+                
+                // Пытаемся запустить воспроизведение сразу
+                videoRef.current.play().then(() => {
+                  logger.success('[VideoStream]', 'Video play() succeeded immediately after applying stream');
+                }).catch((err: any) => {
+                  logger.warn('[VideoStream]', 'Video play() failed immediately (may need user interaction):', err.message);
+                });
+              } else {
+                logger.error('[VideoStream]', 'Video ref is null, cannot apply stream!');
               }
             }
+          } else {
+            logger.warn('[VideoStream]', 'Track received but no streams in event');
           }
         };
 
@@ -347,7 +368,18 @@ export default function VideoStream({
                     if (pendingTracks.length > 0 && videoRef.current) {
                       logger.info('[VideoStream]', `Applying ${pendingTracks.length} pending track(s)`);
                       videoRef.current.srcObject = pendingTracks[0];
+                      logger.success('[VideoStream]', 'Pending track applied to video element');
+                      
+                      // Пытаемся запустить воспроизведение
+                      videoRef.current.play().then(() => {
+                        logger.success('[VideoStream]', 'Video play() succeeded after applying pending track');
+                      }).catch((err: any) => {
+                        logger.warn('[VideoStream]', 'Video play() failed after pending track (may need user interaction):', err.message);
+                      });
+                      
                       pendingTracks = [];
+                    } else if (!videoRef.current) {
+                      logger.error('[VideoStream]', 'Video ref is null when trying to apply pending tracks!');
                     }
                   } catch (sdpErr: any) {
                     logger.error('[VideoStream]', 'Error setting remote description:', sdpErr);
@@ -448,15 +480,31 @@ export default function VideoStream({
         }}
         onPlay={() => {
           logger.success('[VideoStream]', 'Video started playing');
+          setIsConnecting(false);
         }}
         onPause={() => {
           logger.info('[VideoStream]', 'Video paused');
         }}
         onPlaying={() => {
           logger.success('[VideoStream]', 'Video is now playing');
+          setIsConnecting(false);
         }}
         onError={(e) => {
-          logger.error('[VideoStream]', 'Video element error:', e);
+          const error = e.currentTarget.error;
+          logger.error('[VideoStream]', 'Video element error:', {
+            code: error?.code,
+            message: error?.message,
+            networkState: e.currentTarget.networkState,
+            readyState: e.currentTarget.readyState,
+          });
+          setError(`Ошибка воспроизведения видео: ${error?.message || 'Неизвестная ошибка'}`);
+          setIsConnecting(false);
+        }}
+        onStalled={() => {
+          logger.warn('[VideoStream]', 'Video stalled');
+        }}
+        onWaiting={() => {
+          logger.info('[VideoStream]', 'Video waiting for data');
         }}
       />
       
